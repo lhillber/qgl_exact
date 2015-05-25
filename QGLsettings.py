@@ -3,12 +3,12 @@ import numpy as np
 # simulation parameters
 def params():
     global L,INIT,BC,TMAX,DT,DT_STRING,NSTEPS,SIM_NAME,DATA_PATH,HAM_PATH,OPS
-    L = 10
+    L = 7
     BC = ['dead','dead','dead','dead']
     INIT = 3
-    TMAX = 10
-    DT = 0.1
-    DT_STRING = '01'
+    TMAX = 5
+    DT = 1.
+    DT_STRING = '1'
     NSTEPS = int(round(TMAX/DT)+1)
     SIM_NAME = 'L'+str(L)+'_tmax'+str(TMAX)+'_dt'+DT_STRING+'_'
     DATA_PATH = '../data/'

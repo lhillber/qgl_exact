@@ -13,7 +13,9 @@ import scipy.sparse.linalg as la
 from itertools import permutations
 import json
 import sys
+import errno
 
+from functools import reduce
 import QGLsettings as const
 
 
@@ -21,7 +23,7 @@ import QGLsettings as const
 
 def fockinit(dec):
     bin = list('{0:0b}'.format(dec))
-    bin = ['0']*(const.L-4-len(bin)) + bin
+    bin = ['0']*(const.L-4-len(bin)) + bin 
     bin = [el.replace('0','dead').replace('1','alive') for el in bin]
     bin = [const.BC[0]]+[const.BC[1]]+bin+[const.BC[2]]+[const.BC[3]]
     init = [const.OPS[key] for key in bin]
@@ -65,39 +67,29 @@ def N2(i):
     return n2
 
 def make_hamiltonian():
-    try:
-        target=open(const.HAM_PATH+'L'+str(const.L)+'_ham.mtx','r')
-        ham=sio.mmread(target).tocsc()
-        return ham
-    except IOError:
-        print 'making and saving Hamiltonian'
-        tic=lap.time()
-        ham=0
-        for it in range(2,const.L-2):
-            ham=ham+N2(it)+N3(it)
-            target=open(const.HAM_PATH+'L'+str(const.L)+'_ham.mtx','w')
-        sio.mmwrite(target,ham)
-        toc=lap.time()
-        print 'Hamiltonian took ' + str(toc-tic) + ' s'
+    print('making and saving Hamiltonian')
+    tic=lap.time()
+    ham=0
+    for it in range(2,const.L-2):
+        ham=ham+N2(it)+N3(it)
+        target=open(const.HAM_PATH+'L'+str(const.L)+'_ham.mtx','w')
+    #sio.mmwrite(target,ham)
+    toc=lap.time()
+    print('Hamiltonian took ' + str(toc-tic) + ' s')
     return ham
 
 def make_propagator():
-    try:
-        with open(const.HAM_PATH+'L'+str(const.L)+'_dt'+str(const.DT_STRING)+'_prop.mtx','r') as infile:
-            prop = sio.mmread(infile)
-        return prop
-    except IOError:
-        print 'taking matrix exponential...'
-        tic=lap.time()
-        prop = la.expm(-1j*const.DT*make_hamiltonian())
-        toc=lap.time()
-        print 'propagator took '+str(toc-tic)+' s'
-        with open(const.HAM_PATH+'L'+str(const.L)+'_dt'+str(const.DT_STRING)+'_prop.mtx','w') as outfile:
-            sio.mmwrite(outfile,prop)
-        
-        return prop
+    print('taking matrix exponential...')
+    tic=lap.time()
+    prop = la.expm(-1j*const.DT*make_hamiltonian())
+    toc=lap.time()
+    print('propagator took '+str(toc-tic)+' s')
+    #with open(const.HAM_PATH+'L'+str(const.L)+'_dt'+str(const.DT_STRING)+'_prop.mtx','w') as outfile:
+     #   sio.mmwrite(outfile,prop)
+    return prop
+
 def writed(fname,dat):
-    with open(const.DATA_PATH+const.SIM_NAME+fname,'wb') as outfile:
+    with open(const.DATA_PATH+const.SIM_NAME+fname,'wt') as outfile:
         json.dump(dat,outfile)
 
 def readd(fname):
@@ -115,20 +107,17 @@ def make_states(fname):
 # for wach timestep
 def sim():
     dec = const.INIT
-    try:
-        return make_states('IC'+str(dec)+'_states.txt')
-    except IOError:
-        U0 = make_propagator()
-        etic=lap.time()
-        statelist=[0]*const.NSTEPS
-        init = fockinit(dec)
-        state=matKron(init)
-        for it in range(const.NSTEPS):
-            statelist[it]=[state.real,state.imag]
-            state=U0.dot(state)
-        statelist = np.asarray(statelist)
-        etoc=lap.time()
-        print 'time evolution took '+str(etoc-etic)+' s'
-        writed('IC'+str(dec)+'_states.txt',statelist.tolist())
-        return statelist[:,0]+1j*statelist[:,1]
+    U0 = make_propagator()
+    etic=lap.time()
+    statelist=[0]*const.NSTEPS
+    init = fockinit(dec)
+    state=matKron(init)
+    for it in range(const.NSTEPS):
+        statelist[it]=[state.real,state.imag]
+        state=U0.dot(state)
+    statelist = np.asarray(statelist)
+    etoc=lap.time()
+    print('time evolution took '+str(etoc-etic)+' s')
+    writed('IC'+str(dec)+'_states.txt',statelist.tolist())
+    return statelist[:,0]+1j*statelist[:,1]
 

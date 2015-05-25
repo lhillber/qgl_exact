@@ -6,6 +6,8 @@ import time as lap
 import json
 from itertools import product
 from math import sqrt, log
+from functools import reduce
+import errno
 
 import numpy as np
 import scipy.linalg as sla
@@ -19,7 +21,7 @@ import QGLsettings as const
 import QGLsim as qsim
 
 def writed(fname,dat):
-    with open(const.DATA_PATH+const.SIM_NAME+fname,'wb') as outfile:
+    with open(const.DATA_PATH+const.SIM_NAME+fname,'wt') as outfile:
         json.dump(dat,outfile)
 
 def readd(fname):
@@ -196,12 +198,9 @@ def output(it,statelist):
 # set importQ=True for post processing only (import measurements)
 # False to generate and save measurements
 def outputs():
-    try:
-        return readd('IC'+str(const.INIT)+'_outputs.txt')
-    except IOError:
-        slist = qsim.sim()  
-        outputs = [output(i,slist) for i in range(const.NSTEPS)]
-        writed('IC'+str(const.INIT)+'_outputs.txt',outputs)
+    slist = qsim.sim()  
+    outputs = [output(i,slist) for i in range(const.NSTEPS)]
+    writed('IC'+str(const.INIT)+'_outputs.txt',outputs)
     return outputs
 
 
