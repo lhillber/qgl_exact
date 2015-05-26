@@ -83,13 +83,14 @@ class Model():
         
         if isfile(self.ham_path):
             print('Imporiting Hamiltonian...')
-            H = sio.mmread(self.hame_path).tocsc()
+            H = sio.mmread(self.ham_path).tocsc()
         else:
+            print('Building Hamiltonian...')
             H = 0
             for k in range(2,self.L-2):
                 H = H+self.N2(k)+self.N3(k)
-            print('saving Hamiltonian...')
-            sio.mmwrite(HAM_PATH,H)
+            print('Saving Hamiltonian...')
+            sio.mmwrite(self.ham_path,H)
         return H
     
     
@@ -150,6 +151,6 @@ class Simulation():
 
 
 
-m = Model(8,.1)
-U0 = m.build_propagator
+m = Model(10,.1)
+U0 = m.build_propagator()
 m.add_prop(U0)
