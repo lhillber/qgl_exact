@@ -107,7 +107,7 @@ class Model():
             U0 = spsla.expm(-1j*self.DT*H).todense().tolist()
             print('saving propagator...')
             qio.write_cdata(self.prop_path,U0)
-        return U0
+        return np.array(U0)
 
 #==============================================================================
 # Simulation class
@@ -125,25 +125,41 @@ class Simulation():
             a string describing the initial condition (i.e 'd3','i1:2_4:6',
             'G', 'W', 'C', 'theta_GW45',thetaphi45_90)
         """
-        self.L = model.L
-        self.DT = model.DT
+        self.model=model
+        self.U0 = model.prop[0]
+        self.L = self.model.L
+        self.DT = self.model.DT
         self.TMAX = TMAX
         self.IC = IC
-        self.state_path = '../data/states/''L'+str(L)+'_dt'+str(DT)+'_tmax'+str(TMAX)+'_IC'+IC
-        self.NSTEPS = int(round(tmax/dt)+1)
+        self.states_path = '../data/states/''L'+str(self.L)+'_dt'+str(self.DT)+'_tmax'+str(self.TMAX)+'_IC'+self.IC+'_states.json'
+        self.NSTEPS = int(round(self.TMAX/self.DT)+1)
         return
 
-    def evolve_state(start_state):
-        
+    def fockinit(self,dec):
+        bin = list('{0:0b}'.format(dec))
+        bin = ['0']*(self.L-1-len(bin))+bin
+        bin = [el.replace('0','dead').replace('1','alive') for el in bin]
+        return qof.matkron([qof.ops(key) for key in bin])
+
+    
+    def make_IC(self):
+        ICchars = list(self.IC)
+        if ICchars[0]=='d':
+            dec = int(''.join(ICchars[1:]))
+            return self.fockinit(dec)
+        if ICchars[0]=='i':
+            print('entangled IC not yet implemented')
+    
+    
+    def evolve_state(self,start_state):
         if isfile(self.states_path):
             print('Importing states...')
             states = qio.read_cdata(self.states_path)
-        U0 = model.prop
         state_list = [0]*self.NSTEPS
         state = start_state
         for it in range(self.NSTEPS):
             state_list[it] = state
-            state = U0.dot(state)
+            state = self.U0.dot(state)
         qio.write_cdata(self.states_path,state_list)
         return state_list
 
@@ -154,3 +170,6 @@ class Simulation():
 m = Model(10,.1)
 U0 = m.build_propagator()
 m.add_prop(U0)
+
+s=Simulation(m,10,'d11')
+s.evolve_state(s.make_IC())

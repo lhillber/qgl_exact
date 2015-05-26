@@ -84,7 +84,7 @@ def rdm(state,klist):
 # global version of number op for site i
 def Ni(i):
     eyeList = np.array(['I']*const.L)
-    eyeList[i] = 'n'
+    ey(List[i] = 'n'
     prodListN = [const.OPS[key] for key in eyeList]
     return spmatkron(prodListN)
 
