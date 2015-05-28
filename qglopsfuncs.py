@@ -3,7 +3,6 @@ import numpy as np
 import scipy.sparse as sps
 from functools import reduce
 from itertools import permutations
-# simulation parameters
 
 
 def matkron(matlist):
@@ -20,7 +19,11 @@ def spmatkron(matlist):
     """
     return sps.csc_matrix(reduce(lambda A,B: sps.kron(A,B,'csc'),matlist))
 
+def dagger(mat):
+    return mat.conj().transpose()
 
+def average(mylist):
+    return sum(mylist)/len(mylist)
 
 # dictionary of local operators, local basis,
 # and permutation lists for N@ and N3 ops
