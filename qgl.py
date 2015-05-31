@@ -10,7 +10,10 @@ import scipy.sparse as sps
 import scipy.io as sio
 import scipy.linalg as sla
 import scipy.sparse.linalg as spsla
+import scipy.fftpack as spf
 import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
+
 import epl
 import qglopsfuncs as qof
 import networkmeasures as nm
@@ -24,7 +27,7 @@ import qglio as qio
 # (time step)
 #==============================================================================
 class Model():
-    def __init__(self,L,TMAX,DT, ham_path=None,prop_path=None):
+    def __init__(self, L, TMAX, DT, ham_path=None, prop_path=None):
         self.L = L
         self.TMAX = TMAX
         self.DT = DT
@@ -110,7 +113,7 @@ class Model():
 #==============================================================================
 
 class Simulation():
-    def __init__(self,L ,TMAX, DT, IC, states_path=None, meas_path=None, ham_path=None, prop_path=None):
+    def __init__(self, L ,TMAX, DT, IC, states_path=None, meas_path=None, ham_path=None, prop_path=None):
         """
         model:
             an instance of the Model class (which specifies L and DT)
@@ -128,7 +131,8 @@ class Simulation():
         self.U0 = self.model.prop
         self.IC = IC
         self.myIC = self.make_IC()
-       
+        self.model.IC = IC
+ 
         self.states_path = \
             '../data/states/''L'+str(self.L)+'_dt'+str(self.DT)+'_tmax'+str(self.TMAX)+'_IC'+self.IC+'_states.json' \
             if states_path is None else states_path
@@ -138,7 +142,7 @@ class Simulation():
         self.NSTEPS = self.model.NSTEPS
         return
 
-    def fockinit(self,dec):
+    def fockinit(self, dec):
         """
         Generate a Fock state
 
@@ -163,7 +167,7 @@ class Simulation():
             print('entangled IC not yet implemented')
 
 
-    def evolve_state(self,start_state=None,mode='use_IC'):
+    def evolve_state(self, start_state=None, mode='use_IC'):
         start_state = self.myIC if start_state is None else start_state
         """
         Evolving the initial state forward in time and collecting measures of
@@ -191,7 +195,7 @@ class Simulation():
                     state_list[it] = state
                     state = self.U0.dot(state)
                 qio.write_cdata(self.states_path,state_list)
-            
+ 
             if isfile(self.meas_path):
                 print('Importing measurements...')
                 myMeas = qio.read_data(self.meas_path)
@@ -212,7 +216,7 @@ class Simulation():
 #==============================================================================
 
 class Measurements():
-    def __init__(self, tasks=['t','n','MI']):
+    def __init__(self, tasks=['t','n','MI','nn','BD']):
         self.tasks = tasks
         self.results = {key:[] for key in tasks }
         return
@@ -222,7 +226,7 @@ class Measurements():
 
 # reduced density matrix (rdm) for sites in klist 
 # [1,2] for klist would give rho1_2
-    def rdm(self,state,klist):
+    def rdm(self, state, klist):
         """
         Reduced density matrix
         state:
@@ -252,7 +256,7 @@ class Measurements():
         RDM[2**n-1,2**n-1] = complex(1,0)-tot
         return RDM
 
-    def ncalc(self,state):
+    def ncalc(self, state):
         """
         The set of local number operator measures
         Returns a dictionarry of results with keys
@@ -260,7 +264,7 @@ class Measurements():
         'DIS' for nexp discritized at .5
         'DIV' for diversity (defined in epl)
         'DEN' for average number density
-        
+
         state:
             A full lattice state
         """
@@ -271,7 +275,7 @@ class Measurements():
         div = epl.diversity(epl.cluster(dis))
         return {'nexp':nexplist,'DIS':dis,'DIV':div,'DEN':den}
 
-    def Ni(self,k,L):
+    def Ni(self, k, L):
         """
         Represent a local number op in the full Hilbert space
         k:
@@ -284,19 +288,18 @@ class Measurements():
         matlist_N = [qof.ops(key) for key in eyelist]
         return qof.spmatkron(matlist_N)
 
-    def expval(self,state,mat):
+    def expval(self, state, mat):
         """
         Expectation value of an observable with matrix representation
         
         state:
             Full state to take expectation value with respect to 
-
         mat:
             Matrix representation of observable in full Hilbert space
         """
         return np.real(qof.dagger(state).dot(mat*state))[0][0]
 
-    def entropy(self,prho):
+    def entropy(self, prho):
         """
         Von Neumann entropy of a density matrix
         prho:
@@ -306,7 +309,7 @@ class Measurements():
         s = -sum(el*log(el,2) if el > 1e-14 else 0.  for el in evals)
         return s 
 
-    def MInetwork(self,state):
+    def MInetwork(self, state):
         """
         Calculate MI network
         state:
@@ -320,36 +323,66 @@ class Measurements():
             MInet[i][i] = MI
             for j in range(i,L):
                 if i != j:
-                    MI = self.entropy(self.rdm(state,[i]))+self.entropy(self.rdm(state,[j]))-self.entropy(self.rdm(state,[i,j]))
+                    MI = .5*(self.entropy(self.rdm(state,[i]))+self.entropy(self.rdm(state,[j]))-self.entropy(self.rdm(state,[i,j])))
                 if MI > 1e-14:
                     MInet[i][j] = MI
                     MInet[j][i] = MI
         return MInet
 
-    def MIcalc(self,state):
+    def MIcalc(self, state):
         """
         Create a dictionary of measures with keys
         'net' for MI network
         'CC' for clustering coefficient
         'ND' for network density
         'Y' for disoarity
-        'GL' for geodesic path length
-
+        'HL' for harmonic lenth
         state:
             Full lattice state
-
         """
+        
         L = int(log(len(state),2))
         MInet =self.MInetwork(state)
         MICC = nm.clustering(MInet)
         MIdensity = nm.density(MInet)
         MIdisparity = nm.disparity(MInet)
-        MIgeodesiclen = nm.geodesic(nm.distance(MInet),3,5)
-        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'GL':MIgeodesiclen}
+        MIharmoniclen = nm.harmoniclength(nm.distance(MInet)) 
+        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':MIharmoniclen} 
+    
+    
+    def nncorrelation(self, state,i,j):
+        L = int(log(len(state),2))
+        return self.expval(state,self.Ni(i,L).dot(self.Ni(j,L)))-self.expval(state,self.Ni(i,L))*self.expval(state,self.Ni(j,L))
+
+    def nnnetwork(self, state):
+        L = int(log(len(state),2))
+        nnnet = np.zeros((L,L))
+        for i in range(L):
+            nnii = self.nncorrelation(state,i,i)
+            #nnii = 0
+            nnnet[i][i] = nnii
+            for j in range(i,L):
+                if i != j:
+                    nnij = abs(self.nncorrelation(state,i,j))
+                    nnnet[i][j] = nnij
+                    nnnet[j][i] = nnij
+        return np.fabs(nnnet)
+
+    def nncalc(self, state):
+        nnnet = self.nnnetwork(state)
+        nnCC = nm.clustering(nnnet)
+        nndensity = nm.density(nnnet)
+        nndisparity = nm.disparity(nnnet)
+        nnharmoniclen = nm.harmoniclength(nm.distance(nnnet))
+        return {'net':nnnet.tolist(),'CC':nnCC,'ND':nndensity,'Y':nndisparity,'HL':nnharmoniclen}
+
+    def bdcalc(self, state):
+        L = int(log(len(state),2))
+        klist = [[i for i in range(mx)] if mx <= round(L/2) else np.setdiff1d(np.arange(L),[i for i in range(mx)]).tolist() for mx in range(1,L)] 
+        return [np.count_nonzero(filter(lambda el: el > 1e-14, sla.eigvalsh(self.rdm(state,ks)))) for ks in klist ] 
 
 
-
-    def measure(self,state,t):
+    def measure(self, state, t):
         """
         Carry out measurements on state of the system
         """
@@ -362,6 +395,12 @@ class Measurements():
 
             elif key == 't':
                 self.results[key].append(t)
+
+            elif key == 'BD':
+                self.results[key].append(self.bdcalc(state))
+            
+            elif key == 'nn':
+                self.results[key].append(self.nncalc(state))
         return
 
 
@@ -370,18 +409,46 @@ class Measurements():
 #==============================================================================
 
 class Plotting():
-    def __init__(self,model,meas):
+    def __init__(self, model, meas, plots_path=None):
         self.results = meas.results
         self.times = meas.results['t'] 
         self.L = model.L
         self.TMAX = model.TMAX
         self.DT = model.DT
         self.NSTEPS = model.NSTEPS
+        self.IC = model.IC
 
-        self.xtick_locs = range(0,self.NSTEPS,int(self.NSTEPS/10))
+        self.xtick_locs = range(0,30,int(self.NSTEPS/100))
         self.xtick_lbls = [self.times[i] for i in self.xtick_locs]
         self.ytick_locs = range(0,self.L,int(self.L/5))
         self.ytick_lbls = [loc+1 for loc in self.ytick_locs]
+        self.fontsize = 20
+        self.plots_path = \
+            '../data/plots/''L'+str(self.L)+'_dt'+str(self.DT)+'_tmax'+str(self.TMAX)+'_IC'+self.IC \
+            if plots_path is None else plots_path
+ 
+
+    def add_subplot_axes(self,ax,rect,axisbg='w'):
+        fig = plt.gcf()
+        box = ax.get_position()
+        width = box.width
+        height = box.height
+        inax_position  = ax.transAxes.transform(rect[0:2])
+        transFigure = fig.transFigure.inverted()
+        infig_position = transFigure.transform(inax_position)    
+        x = infig_position[0]
+        y = infig_position[1]
+        width *= rect[2]
+        height *= rect[3] 
+        subax = fig.add_axes([x,y,width,height],axisbg=axisbg)
+        x_labelsize = subax.get_xticklabels()[0].get_size()
+        y_labelsize = subax.get_yticklabels()[0].get_size()
+        x_labelsize *= rect[2]**0.5
+        y_labelsize *= rect[3]**0.5
+        subax.xaxis.set_tick_params(labelsize=x_labelsize)
+        subax.yaxis.set_tick_params(labelsize=y_labelsize)
+        return subax
+
 
     def n_results(self):
         n_res = self.results['n']
@@ -391,19 +458,19 @@ class Plotting():
         div_res = np.array([n_res[i]['DIV'] for i in range(self.NSTEPS)])
         return nexp_board, dis_board, den_res, div_res
 
-    def n_plots(self):
+    def n_plots(self,saveQ=True):
         n_res = self.n_results()
-        
+        extent = [0,30,0,self.L-1]
         fig1 = plt.figure(1)
         plt.subplot(211)
-        plt.imshow(n_res[0],cmap=plt.cm.gray_r,interpolation='none')
+        plt.imshow(n_res[0],cmap=plt.cm.gray_r,interpolation='none',extent=extent)
         plt.xlabel('Time')
         plt.ylabel('Lattice Site')
         plt.title('The Quantum Game of Life')
         plt.xticks(self.xtick_locs,self.xtick_lbls)
         plt.yticks(self.ytick_locs,self.ytick_lbls)
         plt.subplot(212)
-        plt.imshow(n_res[1],cmap=plt.cm.gray_r,interpolation='none',)
+        plt.imshow(n_res[1],cmap=plt.cm.gray_r,interpolation='none',extent=extent)
         plt.xlabel('Time')
         plt.ylabel('Lattice Site')
         plt.title('Discretized QGL')
@@ -415,46 +482,147 @@ class Plotting():
         plt.subplot(121)
         plt.plot(self.times,n_res[2])
         plt.title('Average population density')
+        plt.xlabel('Time')
+        plt.ylabel(r'$\rho$',fontsize=self.fontsize)
         plt.subplot(122)
         plt.plot(self.times,n_res[3])
+        plt.xlabel('Time',fontsize=self.fontsize)
+        plt.ylabel(r'$\Delta$')
         plt.title('Diversity')
+        if saveQ==True:
+            fig1.savefig(self.plots_path+'boards.png',format='png',dpi=300)
+            fig2.savefig(self.plots_path+'DenDiv.png',format='png',dpi=300)
         return fig1, fig2
-
 
     def MI_results(self):
         MI_res = self.results['MI']
         MICC_res = np.array([MI_res[i]['CC'] for i in range(self.NSTEPS)])
         MIND_res = np.array([MI_res[i]['ND'] for i in range(self.NSTEPS)])
         MIY_res = np.array([MI_res[i]['Y'] for i in range(self.NSTEPS)])
-        MIGL_res = np.array([MI_res[i]['GL'] for i in range(self.NSTEPS)])
-        return MICC_res, MIND_res, MIY_res, MIGL_res
+        MIHL_res = np.array([MI_res[i]['HL'] for i in range(self.NSTEPS)])
+        return MICC_res, MIND_res, MIY_res, MIHL_res
+    
+    def absrfft(self,y):
+        nsteps = len(y)
+        y = y - qof.average(y)
+        if nsteps%2 == 1:
+            y = np.delete(y,-1)
+            nsteps = len(y)
+        yf =  2.0/nsteps*np.abs(spf.fft(y)[0:nsteps/2])
+        xf = np.linspace(0.0,1.0/(2.0*self.DT),nsteps/2)
+        return xf, yf
 
-    def MI_plots(self):
+
+    def fft_series(self, realdata, window=None):
+        nsteps = len(realdata)
+        window = int(round(nsteps/5)) if window is None else window 
+        fft_ser = [0]*(nsteps - window)
+        t_ser = [0]*(nsteps - window)
+        for it in range(nsteps - window):
+            freqs, amps = self.absrfft(realdata[it:it+window])
+            tol = np.max(amps)/5.
+            fft_ser[it] = [xf for (xf, yf) in list(zip(freqs,amps)) if yf>tol]
+            t_ser[it] = [self.times[it]]*len(fft_ser[it])
+        fft_ser = [f for subf in fft_ser for f in subf]
+        t_ser = [t for subt in t_ser for t in subt]
+        return t_ser, fft_ser
+
+    def MI_plots(self,saveQ=True):
         MI_res = self.MI_results()
+        fig3 = plt.figure(3) 
+        ax1 = plt.subplot(211)
+        ax1.plot(self.times, MI_res[0])
+        ax2 = plt.subplot(212, sharex=ax1)
+        print(self.NSTEPS)
+        Pxx, freqs, bin, im = ax2.specgram(np.array(MI_res[0]),Fs=int(1/(2*self.DT)))
+ 
+        '''
+        MI_ffts = list(map(self.fft_series,MI_res))
+        fig3, axs = plt.subplots(2,2)
 
-        fig3 = plt.figure(3)
-        plt.subplot(221)
-        plt.plot(self.times, MI_res[0])
-        plt.title('Clustering Coefficient')
-        plt.subplot(222)
-        plt.plot(self.times, MI_res[1])
-        plt.title('Network Density')
-        plt.subplot(223)
-        plt.plot(self.times, MI_res[2])
-        plt.title('Disparity')
-        plt.subplot(224)
-        plt.plot(self.times, MI_res[3])
-        plt.title('Geodesic Length (3-5)')
-        plt.ylim([0.,30.])
+        subpos=[0,0,1.,0.35]
+
+        axs[0,0].scatter(MI_ffts[0][0],MI_ffts[0][1])
+        axs[0,0].set_title('Clustering Coefficient: MI')
+        axs[0,0].set_ylim([-1,1])
+        subax00 = self.add_subplot_axes(axs[0,0],subpos)
+        subax00.plot(self.times,MI_res[0])
+
+        axs[0,1].scatter(MI_ffts[1][0],MI_ffts[1][1])
+        axs[0,1].set_title('Network Density: MI')
+        axs[0,1].set_ylim([-1,1])
+        subax01 = self.add_subplot_axes(axs[0,1],subpos)
+        subax01.plot(self.times,MI_res[1])
+
+        axs[1,0].scatter(MI_ffts[2][0],MI_ffts[2][1])
+        axs[1,0].set_title('Disparity: MI')
+        axs[1,0].set_ylim([-1,1])
+        subax10 = self.add_subplot_axes(axs[1,0],subpos)
+        subax10.plot(self.times,MI_res[2])
+
+        axs[1,1].scatter(MI_ffts[3][0],MI_ffts[3][1])
+        axs[1,1].set_title('Harmonic length: MI')
+        axs[1,1].set_ylim([-3,1])
+        subax11 = self.add_subplot_axes(axs[1,1],subpos)
+        subax11.plot(self.times,MI_res[3])
+        subax11.set_ylim([0,40])
+        '''
+        if saveQ==True:
+            fig3.savefig(self.plots_path+'MI.png',format='png',dpi=300)
         return fig3
 
-mySim = Simulation(8,10,.1,'d13')
+    def nn_results(self):
+        nn_res = self.results['nn']
+        nnCC_res = np.array([nn_res[i]['CC'] for i in range(self.NSTEPS)])
+        nnND_res = np.array([nn_res[i]['ND'] for i in range(self.NSTEPS)])
+        nnY_res = np.array([nn_res[i]['Y'] for i in range(self.NSTEPS)])
+        nnHL_res = np.array([nn_res[i]['HL'] for i in range(self.NSTEPS)])
+        return nnCC_res, nnND_res, nnY_res, nnHL_res
+
+    def nn_plots(self,saveQ=True):
+        nn_res = self.nn_results()
+
+        fig4 = plt.figure(4)
+        plt.subplot(221)
+        plt.plot(self.times, nn_res[0])
+        plt.title('Clustering Coefficient: nn')
+        plt.ylabel('CC')
+        plt.xlabel('Time')
+        plt.subplot(222)
+        plt.plot(self.times, nn_res[1])
+        plt.title('Network Density: nn')
+        plt.ylabel('ND')
+        plt.xlabel('Time')
+        plt.subplot(223)
+        plt.plot(self.times, nn_res[2])
+        plt.title('Disparity: nn')
+        plt.ylabel('Y')
+        plt.subplot(224)
+        plt.plot(self.times, nn_res[3])
+        plt.title('Harmonic Length')
+        plt.ylim([0.,400.])
+        if saveQ==True:
+            fig4.savefig(self.plots_path+'nn.png',format='png',dpi=300)
+        plt.tight_layout()
+        return fig4
+
+    def bd_plots(self,saveQ=True):
+        bd_res = self.results['BD']
+        fig5 = plt.figure(5)
+        plt.plot(self.times,bd_res)
+        if saveQ==True:
+            fig5.savefig(self.plots_path+'db.png',format='png',dpi=300)
+
+mySim = Simulation(7,100,.1,'d12')
 myMod,myMeas = mySim.evolve_state()
 
-myPlots = Plotting(myMod,myMeas)
 
+myPlots = Plotting(myMod, myMeas)
 myPlots.n_plots()
 myPlots.MI_plots()
+myPlots.nn_plots()
+myPlots.bd_plots()
 plt.show()
+
 
 

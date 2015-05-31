@@ -3,6 +3,14 @@ import numpy as np
 import networkx as nx
 #Scripted by David Vargas
 #---------------------------------------------
+#Convention if directed networks are introduced,
+#Aij=1 if there is an edge from j to i. This
+#means one would sum over row i to get the total
+#number of incoming edges to node i.
+#Here I am summing over rows.
+def strengths(mutualinformation):
+    #Return the strength of all nodes in the network in order.
+    return np.sum(mutualinformation,axis=1)
 def density(matrix):
     #Calculates density, also termed connectance in some
     #literature. Defined on page 134 of Mark Newman's book
@@ -36,7 +44,7 @@ def disparity(matrix):
     numerator=sum(matrix**2)
     denominator=sum(matrix)**2
     logos=denominator>1E-14
-    numerator=numerator[logos]/l
+    numerator=numerator[logos]/(l-1)
     denominator=denominator[logos]
     return sum(numerator/denominator)
 def maxdisparity(matrix):
@@ -76,11 +84,40 @@ def distance(mutualinformation):
     return thisdistance
 def geodesic(distance,i,j):
     #Initialize networkx graph object
+    #NetworkX indexing starts at zero.
+    #Ends at N-1 where N is the number of nodes.
     latticelength=len(distance)
     G=nx.Graph(distance)
     #Use networkx algorithm to compute the shortest path from
     #the first lattice site to the last lattice site.
-    pathlength=nx.shortest_path_length(G,i-1,j-1,weight='weight')
+    pathlength=nx.shortest_path_length(G,source=i-1,target=j-1,weight='weight')
     if pathlength>np.power(10.,15):
         return np.nan
     return pathlength
+def harmoniclength(distance):
+    #page 11, equation 2 The Structure and Function of Complex Networks
+    #If the geodesic distance between two nodes is a number then 
+    #append it to alist to include it in the sum.
+    l=len(distance)
+    factor=1./(0.5*l*(l-1))
+    alist=[]
+    for i in range(1,len(distance)+1):
+        for j in range(i+1,len(distance)+1):
+            geo=geodesic(distance,i,j)
+            if not np.isnan(geo):
+                alist.append(1./geo)
+    if sum(alist)==0:
+        return 0
+    else:
+        return 1./(factor*sum(alist))
+
+def strengthdist(mutualinformation,bincount):
+    #Compute the weighted analog of a degree distribution.
+    strengths=nm.strengths(mutualinformation)
+    maxinfo=np.max(strenghts)
+    mininfo=np.min(strenghts)
+    return(np.histogram(mininfo,maxinfo,bin=np.linspace(mininfo,maxinfo,bincount+1)))
+
+
+
+
