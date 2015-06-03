@@ -31,7 +31,7 @@ def clustering(matrix):
         matrixsq[i][i]=0
     denominator=sum(sum(matrixsq))
     numerator=np.trace(matrixcube)
-    if numerator==0.:
+    if denominator<1e-14:
         return 0.
     else:
         return numerator/denominator
@@ -109,7 +109,7 @@ def harmoniclength(distance):
     if sum(alist)==0:
         return 0
     else:
-        return 1./(factor*sum(alist))
+        return factor*sum(alist)
 
 def strengthdist(mutualinformation,bincount):
     #Compute the weighted analog of a degree distribution.
