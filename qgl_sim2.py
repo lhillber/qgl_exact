@@ -54,7 +54,19 @@ class Model():
         n3=0
         for  tup in qof.ops('permutations_3'):
             local_matlist3 = [tup[0],tup[1],'mix',tup[2],tup[3]]
-            matlist3 = ['I']*(k-2)+local_matlist3+(['I']*(self.L-k-3))
+            if k==0:
+                del local_matlist3[0]
+                del local_matlist3[0]
+            if k==self.L-1:
+                del local_matlist3[3]
+                del local_matlist3[3]
+                
+            if k==1:
+                del local_matlist3[0]
+            if k==self.L-2:
+                del local_matlist3[3]
+            matlist3 = ['I']*(k-2)+local_matlist3
+            matlist3 = matlist3 +['I']*(self.L-len(matlist3))
             matlist3 = [qof.ops(key) for key in matlist3]
             n3 = n3 + qof.spmatkron(matlist3)
         return n3
@@ -69,7 +81,19 @@ class Model():
         n2 = 0
         for tup in qof.ops('permutations_2'):
             local_matlist2 = [tup[0],tup[1],'mix',tup[2],tup[3]]
-            matlist2 = ['I']*(k-2)+local_matlist2+(['I']*(self.L-k-3))
+            if k==0:
+                del local_matlist2[0]
+                del local_matlist2[0]
+            if k==self.L-1:
+                del local_matlist2[3]
+                del local_matlist2[3]
+                
+            if k==1:
+                del local_matlist2[0]
+            if k==self.L-2:
+                del local_matlist2[3]
+            matlist2 = ['I']*(k-2)+local_matlist2
+            matlist2 = matlist2+['I']*(self.L-len(matlist2))
             matlist2 = [qof.ops(key) for key in matlist2]
             n2 = n2 + qof.spmatkron(matlist2)
         return n2
@@ -86,7 +110,7 @@ class Model():
         else:
             print('Building Hamiltonian...')
             H = 0
-            for k in range(2,self.L-2):
+            for k in range(self.L):
                 H = H+self.N2(k)+self.N3(k)
             sio.mmwrite(self.ham_path,H)
         self.ham = np.array(H)
@@ -163,38 +187,34 @@ class Simulation():
         bin = list('{0:0b}'.format(dec))
         bin = ['0']*(self.L-len(bin))+bin
         bin = [el.replace('0','dead').replace('1','alive') for el in bin]
+        print(bin)
         return qof.matkron([qof.ops(key) for key in bin])
 
     def GHZ(self):
         """
-        Generate GHZ state of size L-4
+        Generate GHZ state of size L
         """
-        s1=['alive']*(self.L-4)
-        s2=['dead']*(self.L-4)
-        s1=['dead','dead']+s1+['dead','dead']
-        s2=['dead','dead']+s2+['dead','dead']
+        s1=['alive']*(self.L)
+        s2=['dead']*(self.L)
         return (qof.matkron([qof.ops(key) for key in s1])+qof.matkron([qof.ops(key) for key in s2]))*1./sqrt(2.)
 
-    def one_alive(self,k,L):
+    def one_alive(self,k):
         """
         generate a state with one livng site at k
         """
         
-        base = ['dead']*(L)
+        base = ['dead']*self.L
         base[k] = 'alive'
         return qof.matkron([qof.ops(key) for key in base])
         
     def W(self):
         """
-        Generate W state of size L-4
+        Generate W state of size L
         """
-        W_part = 1/sqrt(self.L-4)*sum([self.one_alive(k,self.L-4) for k in range(self.L-4)]) 
-        return qof.matkron([qof.ops('dead'),qof.ops('dead'),W_part,qof.ops('dead'),qof.ops('dead')])
+        return  1/sqrt(self.L)*sum([self.one_alive(k) for k in range(self.L)]) 
     
     def all_alive(self):
-        dec = sum(2**n for n in range(2,self.L-2))
-        print(self.L)
-        print(dec)
+        dec = sum(2**n for n in range(0,self.L))
         return self.fock(dec)
     
     def make_IC(self):
@@ -461,7 +481,13 @@ class Measurements():
                 self.results[key].append(self.nncalc(state))
         return
 
-def main(BATCH_PATH,tasks, Llist, dtlist, tspanlist, IClist):
+def main(params):
+    BATCH_PATH = params['batch_path']
+    tasks = params['tasks']
+    Llist  = params['Llist']
+    dtlist = params['dtlist']
+    tspanlist = params['tspanlist']
+    IClist = params['IClist']
     
     PLOTS_PATH = '../'+BATCH_PATH+'/plots/'
     DATA_PATH = '../'+BATCH_PATH+'/data/'
