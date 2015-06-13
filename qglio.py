@@ -1,6 +1,8 @@
 #!/usr/bin/python
 import json
 import numpy as np
+
+
 def write_data(path,data):
     data = np.asarray(data)
     with open(path,'w') as outfile:
@@ -24,3 +26,9 @@ def read_cdata(path):
         data = splitdata[0]+1j*splitdata[1]
     return data
 
+def write_prop(path,data):
+    data = np.asarray(data)
+    data.tofile(path)
+
+def read_prop(path):
+   return np.fromfile(path,dtype=complex)

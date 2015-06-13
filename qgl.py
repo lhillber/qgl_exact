@@ -125,12 +125,16 @@ class Model():
         """
         if isfile(self.prop_path):
             print('Importing Propagator...')
-            U0 = qio.read_cdata(self.prop_path)
+            U0 = qio.read_prop(self.prop_path)
         else:
             print('Building propagator...')
             H = self.build_hamiltonian()
+            print('computing matrix exponential...')
+            tic = lap.time()
             U0 = spsla.expm(-1j*self.DT*H).todense().tolist()
-            qio.write_cdata(self.prop_path,U0)
+            toc = lap.time()
+            print('Matrix exp took '+str(toc-tic)+' s')
+            qio.write_prop(self.prop_path,U0)
         self.prop = np.array(U0)
         return self.prop
 
@@ -140,25 +144,20 @@ class Model():
 #==============================================================================
 
 class Simulation():
-    def __init__(self,tasks, L ,TSPAN, DT, IC, states_path=None, meas_path=None, ham_path=None, prop_path=None):
+    def __init__ (self,tasks, L ,TSPAN, DT, IC, states_path=None, meas_path=None, ham_path=None, prop_path=None):
         """
         model:
             an instance of the Model class (which specifies L and DT)
         meas:
             an instance of the Measurements class
         IC:
-            a string describing the initial condition (i.e 'd3','e1:2_4:6bd',
-            'G', 'W', 'C', 'theta_GW45',thetaphi45_90)
+            an ordered dict describing the initial condition (i.e [('d3',1.0)],
+            'G', 'W', 'C')
         """
-        self.L_list = L_list
-        self.new_sim(0)
-
-    def new_sim(n):
         self.model = Model(L,TSPAN, DT, ham_path=ham_path, prop_path=prop_path)
         self.meas = Measurements(tasks=tasks)
-        self.L = self.L_list(n)
-        self.TMAX = selt.TMAX_list[n]
-        TSPAN[1]
+        self.L = L
+        self.TMAX = TSPAN[1]
         self.TMIN = TSPAN[0]
         self.TSPAN = TSPAN
         self.DT = DT
@@ -177,13 +176,15 @@ class Simulation():
         self.meas_path = '../data/measures/' if meas_path is None else meas_path
         self.meas_name = 'L'+str(self.L)+'_dt'+str(self.DT)+'_tspan'+str(self.TSPAN[0])+'-'+str(self.TSPAN[1])+'_IC'+self.IC_string(IC)+'_meas.json'
         self.meas_path = self.meas_path+self.meas_name
+   
         return
 
-    def IC_string(self,IC):
+
+    def IC_string (self,IC):
         return '_'.join(['{}_{}'.format(k,v) for k,v in IC.items()])
 
 
-    def fock(self, dec):
+    def fock (self, dec):
         """
         Generate a Fock state
 
@@ -195,9 +196,11 @@ class Simulation():
         bin = ['0']*(self.L-len(bin))+bin
         bin = [el.replace('0','dead').replace('1','alive') for el in bin]
         print(bin)
+        
         return qof.matkron([qof.ops(key) for key in bin])
 
-    def GHZ(self):
+
+    def GHZ (self):
         """
         Generate GHZ state of size L
         """
@@ -205,26 +208,32 @@ class Simulation():
         s2=['dead']*(self.L)
         return (qof.matkron([qof.ops(key) for key in s1])+qof.matkron([qof.ops(key) for key in s2]))*1./sqrt(2.)
 
-    def one_alive(self,k):
+
+    def one_alive (self,k):
         """
         generate a state with one livng site at k
         """
 
         base = ['dead']*self.L
         base[k] = 'alive'
+        
         return qof.matkron([qof.ops(key) for key in base])
 
-    def W(self):
+    def W (self):
         """
         Generate W state of size L
         """
+        
         return  1/sqrt(self.L)*sum([self.one_alive(k) for k in range(self.L)])
 
-    def all_alive(self):
+
+    def all_alive (self):
         dec = sum(2**n for n in range(0,self.L))
+        
         return self.fock(dec)
 
-    def make_IC(self):
+
+    def make_IC (self):
         """
         Parse the IC string to determine which state generator to use
         """
@@ -243,7 +252,7 @@ class Simulation():
                 mystate = mystate + self.IC[state]*self.all_alive()
         return mystate
 
-    def evolve_state(self, start_state=None, mode='use_IC'):
+    def evolve_state (self, start_state=None,):
         """
         Evolving the initial state forward in time and collecting measures of
         the current state along the way
@@ -251,51 +260,47 @@ class Simulation():
         start_state:
             A full lattice site
 
-        mode:
-            'TODO'
         """
 
         start_state = self.myIC if start_state is None else start_state
-        if mode=='use_IC':
-            if isfile(self.states_path):
-                print('Importing states...')
-                state_list = qio.read_cdata(self.states_path)
+        if isfile(self.states_path):
+            print('Importing states...')
+            state_list = qio.read_cdata(self.states_path)
 
-            else:
-                print('Time evolving IC...')
-                state_list = [0]*self.NSTEPS
-                state = start_state
-                i = 0
-                for it in range(self.NMAX):
+        else:
+            print('Time evolving IC...')
+            
+            state_list = [0]*self.NSTEPS
+            state = start_state
+            i = 0
+            for it in range(self.NMAX):
+                state = self.U0.dot(state)
+                
+                if it>=self.NMIN:
+                    state_list[i] = state
+                    i = i+1
+            qio.write_cdata(self.states_path,state_list)
 
-                    state = self.U0.dot(state)
-                    if it>=self.NMIN:
-                        state_list[i] = state
-                        i = i+1
-                qio.write_cdata(self.states_path,state_list)
+        if isfile(self.meas_path):
+            print('Importing measurements...')
+            myMeas = qio.read_data(self.meas_path)
+            self.meas.results = myMeas
+        
+        else:
+            print('Measuring states...')
+            
+            for it in range(self.NSTEPS):
+                tic =lap.time()
+                t = it*self.DT + self.TMIN
+                state = state_list[it]
+                self.meas.measure(state,t)
+                toc = lap.time()
+                print('t = ',t,' took ',toc-tic,'s')
 
-            if isfile(self.meas_path):
-                print('Importing measurements...')
-                myMeas = qio.read_data(self.meas_path)
-                self.meas.results = myMeas
-            else:
-                print('Measuring states...')
-                for it in range(self.NSTEPS):
-                    tic =lap.time()
-                    t = it*self.DT + self.TMIN
-                    state = state_list[it]
-                    self.meas.measure(state,t)
-                    toc = lap.time()
-                    print('t = ',t,'took',toc-tic,'s')
+            qio.write_data(self.meas_path, self.meas.results)
+        
+        return self.model, self.meas
 
-                qio.write_data(self.meas_path, self.meas.results)
-            return self.model, self.meas
-        if mode=='load_state':
-                print('loading states not yet supported')
-
-    def run_sims():
-        self.setup(1)
-        selt.evolve_state()
 
 
 
@@ -343,7 +348,9 @@ class Measurements():
                     RDM[i][j] = Rij
                     RDM[j][i] = Rij
         RDM[2**n-1,2**n-1] = complex(1,0)-tot
+        
         return RDM
+
 
     def ncalc(self, state):
         """
@@ -363,9 +370,11 @@ class Measurements():
         dis = [0 if ni<0.5 else 1 for ni in nexplist]
         den = qof.average(nexplist)
         div = epl.diversity(epl.cluster(dis))
+        
         return {'nexp':nexplist,'DIS':dis,'DIV':div,'DEN':den}
 
-    def Ni(self, k, L):
+
+    def Ni (self, k, L):
         """
         Represent a local number op in the full Hilbert space
         k:
@@ -376,9 +385,11 @@ class Measurements():
         eyelist = np.array(['I']*L)
         eyelist[k] = 'n'
         matlist_N = [qof.ops(key) for key in eyelist]
+        
         return qof.spmatkron(matlist_N)
 
-    def expval(self, state, mat):
+
+    def expval (self, state, mat):
         """
         Expectation value of an observable with matrix representation
 
@@ -389,7 +400,8 @@ class Measurements():
         """
         return np.real(qof.dagger(state).dot(mat*state))[0][0]
 
-    def entropy(self, prho):
+
+    def entropy (self, prho):
         """
         Von Neumann entropy of a density matrix
         prho:
@@ -397,7 +409,9 @@ class Measurements():
         """
         evals = sla.eigvalsh(prho)
         s = -sum(el*log(el,2) if el > 1e-14 else 0.  for el in evals)
+        
         return s
+
 
     def MInetwork(self, state):
         """
@@ -407,19 +421,23 @@ class Measurements():
         """
         L = int(log(len(state),2))
         MInet = np.zeros((L,L))
+        
         for i in range(L):
             #MI = self.entropy(self.rdm(state,[i]))
             MI = 0.
             MInet[i][i] = MI
+            
             for j in range(i,L):
                 if i != j:
                     MI = .5*(self.entropy(self.rdm(state,[i]))+self.entropy(self.rdm(state,[j]))-self.entropy(self.rdm(state,[i,j])))
                 if MI > 1e-14:
                     MInet[i][j] = MI
                     MInet[j][i] = MI
+        
         return MInet
 
-    def MIcalc(self, state):
+
+    def MIcalc (self, state):
         """
         Create a dictionary of measures with keys
         'net' for MI network
@@ -431,25 +449,29 @@ class Measurements():
             Full lattice state
         """
 
-        L = int(log(len(state),2))
-        MInet =self.MInetwork(state)
+        MInet = self.MInetwork(state)
         MICC = nm.clustering(MInet)
         MIdensity = nm.density(MInet)
         MIdisparity = nm.disparity(MInet)
         MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
+        
         return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':MIharmoniclen}
 
-    def nncorrelation(self, state,i,j):
+
+    def nncorrelation (self, state,i,j):
         L = int(log(len(state),2))
         return self.expval(state,self.Ni(i,L).dot(self.Ni(j,L)))-self.expval(state,self.Ni(i,L))*self.expval(state,self.Ni(j,L))
 
-    def nnnetwork(self, state):
+
+    def nnnetwork (self, state):
         L = int(log(len(state),2))
         nnnet = np.zeros((L,L))
+        
         for i in range(L):
             #nnii = self.nncorrelation(state,i,i)
             nnii = 0
             nnnet[i][i] = nnii
+            
             for j in range(i,L):
                 if i != j:
                     nnij = abs(self.nncorrelation(state,i,j))
@@ -459,25 +481,31 @@ class Measurements():
 
         return np.fabs(nnnet)
 
-    def nncalc(self, state):
+
+    def nncalc (self, state):
         nnnet = self.nnnetwork(state)
         nnCC = nm.clustering(nnnet)
         nndensity = nm.density(nnnet)
         nndisparity = nm.disparity(nnnet)
         nnharmoniclen = nm.harmoniclength(nm.distance(nnnet))
+        
         return {'net':nnnet.tolist(),'CC':nnCC,'ND':nndensity,'Y':nndisparity,'HL':nnharmoniclen}
 
-    def bdcalc(self, state):
+
+    def bdcalc (self, state):
         L = int(log(len(state),2))
         klist = [[i for i in range(mx)] if mx <= round(L/2) else np.setdiff1d(np.arange(L),[i for i in range(mx)]).tolist() for mx in range(1,L)]
+       
         return [np.count_nonzero(filter(lambda el: el > 1e-14, sla.eigvalsh(self.rdm(state,ks)))) for ks in klist ]
 
 
-    def measure(self, state, t):
+    def measure (self, state, t):
         """
         Carry out measurements on state of the system
         """
+        
         for key in self.tasks:
+            
             if key == 'n':
                 self.results[key].append(self.ncalc(state))
 
@@ -492,26 +520,40 @@ class Measurements():
 
             elif key == 'nn':
                 self.results[key].append(self.nncalc(state))
+        
         return
 
-def run_sim (L_list = [10], dt_list = [1.0], tasks = ['t', 'n', 'nn', 'MI'],
-        output_dir = "output", t_span_list = [(0.0, 10.0), (2.0, 12.0)],
-        IC_list = [[('a',1.0),('W',0.0)]]):
+
+
+
+
+
+def run_sim (L = 10, dt = 1.0, t_span = (0.0, 10.0), 
+                IC = [('a',1.0),('W',0.0)], 
+             tasks = ['t', 'n', 'nn', 'MI'],
+        output_dir = "output"):
+
+    IC = OrderedDict(IC)
 
     PLOTS_PATH = output_dir + '/plots/'
     DATA_PATH  = output_dir + '/data/'
+
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(PLOTS_PATH, exist_ok=True)
     os.makedirs(DATA_PATH,  exist_ok=True)
 
-    mySim = []
-    for L in L_list:
-        for dt in dt_list:
-            for t_span in t_span_list:
-                for IC in IC_list:
-                    IC = OrderedDict(IC)
-                    mySim.append(Simulation(tasks, L, tspan, dt, IC,
-                            states_path = DATA_PATH, meas_path = DATA_PATH))
+ 
+    mysim = Simulation(tasks, L, t_span, dt, IC,
+               states_path = DATA_PATH,
+                 meas_path = DATA_PATH)
 
+    mysim.evolve_state()
+
+
+'''
     p = mp.Pool(len(mySims))
     p.map(Simulation.evolve_state, mySims)
+'''
+
+
+
