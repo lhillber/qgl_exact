@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-import multiprocessing as mp
+from multiprocessing import Pipe
+from multiprocessing import Process
 
 from itertools import permutations
 from functools import reduce
@@ -31,15 +32,11 @@ import qglio as qio
 # (time step)
 #==============================================================================
 class Model():
-    def __init__(self, L, TSPAN, DT, ham_path=None, prop_path=None):
+    def __init__(self, L, dt, model_dir = '~/Documents/qgl_ediag/models'):
         self.L = L
-        self.TMAX = TSPAN[1]
-        self.DT = DT
-        self.ham_path ='../data/hamiltonians/L'+str(self.L)+'_ham.mtx'  \
-                if ham_path is  None else ham_path
-
-        self.prop_path = '../data/propagators/L'+str(self.L)+'_dt'+str(self.DT)+'_prop.txt' \
-                if prop_path is None else prop_path
+        self.dt = dt
+        self.ham_path  = model_dir + '/hamiltonians'
+        self.prop_path = model_dir + '/propogators'
         self.gen_model()
         return
 
@@ -131,178 +128,12 @@ class Model():
             H = self.build_hamiltonian()
             print('computing matrix exponential...')
             tic = lap.time()
-            U0 = spsla.expm(-1j*self.DT*H).todense().tolist()
+            U0 = spsla.expm(-1j*self.dt*H).todense().tolist()
             toc = lap.time()
             print('Matrix exp took '+str(toc-tic)+' s')
             qio.write_prop(self.prop_path,U0)
         self.prop = np.array(U0)
         return self.prop
-
-#==============================================================================
-# Simulation class
-# run time evolution on an initial state and save the result out
-#==============================================================================
-
-class Simulation():
-    def __init__ (self,tasks, L ,TSPAN, DT, IC, states_path=None, meas_path=None, ham_path=None, prop_path=None):
-        """
-        model:
-            an instance of the Model class (which specifies L and DT)
-        meas:
-            an instance of the Measurements class
-        IC:
-            an ordered dict describing the initial condition (i.e [('d3',1.0)],
-            'G', 'W', 'C')
-        """
-        self.model = Model(L,TSPAN, DT, ham_path=ham_path, prop_path=prop_path)
-        self.meas = Measurements(tasks=tasks)
-        self.L = L
-        self.TMAX = TSPAN[1]
-        self.TMIN = TSPAN[0]
-        self.TSPAN = TSPAN
-        self.DT = DT
-        self.NMIN = round(self.TMIN/self.DT)
-        self.NMAX = round(self.TMAX/self.DT)
-        self.NSTEPS = self.NMAX - self.NMIN
-        self.U0 = self.model.prop
-        self.IC = IC
-        self.myIC = self.make_IC()
-        self.model.IC = IC
-        self.tasks = tasks
-
-        self.states_path = '../data/states/' if states_path is None else states_path
-        self.states_name = 'L'+str(self.L)+'_dt'+str(self.DT)+'_tspan'+str(self.TSPAN[0])+'-'+str(self.TSPAN[1])+'_IC'+self.IC_string(IC)+'_states.json'
-        self.states_path = self.states_path + self.states_name
-        self.meas_path = '../data/measures/' if meas_path is None else meas_path
-        self.meas_name = 'L'+str(self.L)+'_dt'+str(self.DT)+'_tspan'+str(self.TSPAN[0])+'-'+str(self.TSPAN[1])+'_IC'+self.IC_string(IC)+'_meas.json'
-        self.meas_path = self.meas_path+self.meas_name
-   
-        return
-
-
-    def IC_string (self,IC):
-        return '_'.join(['{}_{}'.format(k,v) for k,v in IC.items()])
-
-
-    def fock (self, dec):
-        """
-        Generate a Fock state
-
-        dec:
-            A base 10 number which identifies the fock state when converted into
-            binary (zeros are dead; ones are alive)
-        """
-        bin = list('{0:0b}'.format(dec))
-        bin = ['0']*(self.L-len(bin))+bin
-        bin = [el.replace('0','dead').replace('1','alive') for el in bin]
-        print(bin)
-        
-        return qof.matkron([qof.ops(key) for key in bin])
-
-
-    def GHZ (self):
-        """
-        Generate GHZ state of size L
-        """
-        s1=['alive']*(self.L)
-        s2=['dead']*(self.L)
-        return (qof.matkron([qof.ops(key) for key in s1])+qof.matkron([qof.ops(key) for key in s2]))*1./sqrt(2.)
-
-
-    def one_alive (self,k):
-        """
-        generate a state with one livng site at k
-        """
-
-        base = ['dead']*self.L
-        base[k] = 'alive'
-        
-        return qof.matkron([qof.ops(key) for key in base])
-
-    def W (self):
-        """
-        Generate W state of size L
-        """
-        
-        return  1/sqrt(self.L)*sum([self.one_alive(k) for k in range(self.L)])
-
-
-    def all_alive (self):
-        dec = sum(2**n for n in range(0,self.L))
-        
-        return self.fock(dec)
-
-
-    def make_IC (self):
-        """
-        Parse the IC string to determine which state generator to use
-        """
-        states = self.IC.keys()
-        mystate = 0
-        for state in states:
-            ICchars = list(state)
-            if ICchars[0]=='d':
-                dec = int(''.join(ICchars[1:]))
-                mystate = mystate + self.IC[state]*self.fock(dec)
-            elif ICchars[0]=='G':
-                mystate = mystate + self.IC[state]*self.GHZ()
-            elif ICchars[0]=='W':
-                mystate = mystate + self.IC[state]*self.W()
-            elif ICchars[0]=='a':
-                mystate = mystate + self.IC[state]*self.all_alive()
-        return mystate
-
-    def evolve_state (self, start_state=None,):
-        """
-        Evolving the initial state forward in time and collecting measures of
-        the current state along the way
-
-        start_state:
-            A full lattice site
-
-        """
-
-        start_state = self.myIC if start_state is None else start_state
-        if isfile(self.states_path):
-            print('Importing states...')
-            state_list = qio.read_cdata(self.states_path)
-
-        else:
-            print('Time evolving IC...')
-            
-            state_list = [0]*self.NSTEPS
-            state = start_state
-            i = 0
-            for it in range(self.NMAX):
-                state = self.U0.dot(state)
-                
-                if it>=self.NMIN:
-                    state_list[i] = state
-                    i = i+1
-            qio.write_cdata(self.states_path,state_list)
-
-        if isfile(self.meas_path):
-            print('Importing measurements...')
-            myMeas = qio.read_data(self.meas_path)
-            self.meas.results = myMeas
-        
-        else:
-            print('Measuring states...')
-            
-            for it in range(self.NSTEPS):
-                tic =lap.time()
-                t = it*self.DT + self.TMIN
-                state = state_list[it]
-                self.meas.measure(state,t)
-                toc = lap.time()
-                print('t = ',t,' took ',toc-tic,'s')
-
-            qio.write_data(self.meas_path, self.meas.results)
-        
-        return self.model, self.meas
-
-
-
 
 #==============================================================================
 # Measurements class
@@ -348,7 +179,7 @@ class Measurements():
                     RDM[i][j] = Rij
                     RDM[j][i] = Rij
         RDM[2**n-1,2**n-1] = complex(1,0)-tot
-        
+
         return RDM
 
 
@@ -370,7 +201,7 @@ class Measurements():
         dis = [0 if ni<0.5 else 1 for ni in nexplist]
         den = qof.average(nexplist)
         div = epl.diversity(epl.cluster(dis))
-        
+
         return {'nexp':nexplist,'DIS':dis,'DIV':div,'DEN':den}
 
 
@@ -385,7 +216,7 @@ class Measurements():
         eyelist = np.array(['I']*L)
         eyelist[k] = 'n'
         matlist_N = [qof.ops(key) for key in eyelist]
-        
+
         return qof.spmatkron(matlist_N)
 
 
@@ -409,7 +240,7 @@ class Measurements():
         """
         evals = sla.eigvalsh(prho)
         s = -sum(el*log(el,2) if el > 1e-14 else 0.  for el in evals)
-        
+
         return s
 
 
@@ -421,19 +252,19 @@ class Measurements():
         """
         L = int(log(len(state),2))
         MInet = np.zeros((L,L))
-        
+
         for i in range(L):
             #MI = self.entropy(self.rdm(state,[i]))
             MI = 0.
             MInet[i][i] = MI
-            
+
             for j in range(i,L):
                 if i != j:
                     MI = .5*(self.entropy(self.rdm(state,[i]))+self.entropy(self.rdm(state,[j]))-self.entropy(self.rdm(state,[i,j])))
                 if MI > 1e-14:
                     MInet[i][j] = MI
                     MInet[j][i] = MI
-        
+
         return MInet
 
 
@@ -454,7 +285,7 @@ class Measurements():
         MIdensity = nm.density(MInet)
         MIdisparity = nm.disparity(MInet)
         MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
-        
+
         return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':MIharmoniclen}
 
 
@@ -466,12 +297,12 @@ class Measurements():
     def nnnetwork (self, state):
         L = int(log(len(state),2))
         nnnet = np.zeros((L,L))
-        
+
         for i in range(L):
             #nnii = self.nncorrelation(state,i,i)
             nnii = 0
             nnnet[i][i] = nnii
-            
+
             for j in range(i,L):
                 if i != j:
                     nnij = abs(self.nncorrelation(state,i,j))
@@ -488,14 +319,14 @@ class Measurements():
         nndensity = nm.density(nnnet)
         nndisparity = nm.disparity(nnnet)
         nnharmoniclen = nm.harmoniclength(nm.distance(nnnet))
-        
+
         return {'net':nnnet.tolist(),'CC':nnCC,'ND':nndensity,'Y':nndisparity,'HL':nnharmoniclen}
 
 
     def bdcalc (self, state):
         L = int(log(len(state),2))
         klist = [[i for i in range(mx)] if mx <= round(L/2) else np.setdiff1d(np.arange(L),[i for i in range(mx)]).tolist() for mx in range(1,L)]
-       
+
         return [np.count_nonzero(filter(lambda el: el > 1e-14, sla.eigvalsh(self.rdm(state,ks)))) for ks in klist ]
 
 
@@ -503,9 +334,9 @@ class Measurements():
         """
         Carry out measurements on state of the system
         """
-        
+
         for key in self.tasks:
-            
+
             if key == 'n':
                 self.results[key].append(self.ncalc(state))
 
@@ -520,40 +351,158 @@ class Measurements():
 
             elif key == 'nn':
                 self.results[key].append(self.nncalc(state))
-        
+
         return
 
 
+#==============================================================================
+# Simulation class
+# run time evolution on an initial state and save the result out
+#==============================================================================
+
+class Simulation():
+    def __init__ (self, tasks, L, tspan, dt, IC, output_dir,
+                    model_dir = '~/Documents/qgl_ediag/'):
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        self.tasks = tasks
+        self.L = L
+        self.dt = dt
+        self.nmin = round(tspan[0]/self.dt)
+        self.nmax = round(tspan[1]/self.dt)
+        self.nsteps = self.nmax - self.nmin
+
+        self.IC = self.make_state(IC)
+
+        self.model = Model (L, dt, model_dir = model_dir)
+
+        self.meas = Measurements (tasks=tasks)
+
+        # states_name = 'L'+str(self.L)+'_dt'+str(self.dt)+'_tspan'+str(tspan[0])+'-'+str(tspan[1])+'_IC'+self.IC_string(IC)+'_states.json'
+        # self.states_path = model_dir + "/states/" + states_name
+        # ?
+        self.states_path = '../data/states/' if states_path is None else states_path
+        self.states_name = 
+        self.states_path = self.states_path + self.states_name
+        self.meas_path = '../data/measures/' if meas_path is None else meas_path
+        self.meas_name = 'L'+str(self.L)+'_dt'+str(self.dt)+'_tspan'+str(tspan[0])+'-'+str(tspan[1])+'_IC'+self.IC_string(IC)+'_meas.json'
+        self.meas_path = self.meas_path+self.meas_name
+
+        return
 
 
+    def IC_string (self,IC):
+        return '_'.join(['{}_{}'.format(k,v) for k,v in IC.items()])
 
 
-def run_sim (L = 10, dt = 1.0, t_span = (0.0, 10.0), 
-                IC = [('a',1.0),('W',0.0)], 
-             tasks = ['t', 'n', 'nn', 'MI'],
-        output_dir = "output"):
+    def fock (self, dec):
+        """
+        Generate a Fock state
 
-    IC = OrderedDict(IC)
+        dec:
+            A base 10 number which identifies the fock state when converted into
+            binary (zeros are dead; ones are alive)
+        """
+        bin = list('{0:0b}'.format(dec))
+        bin = ['0']*(self.L-len(bin))+bin
+        bin = [el.replace('0','dead').replace('1','alive') for el in bin]
+        print(bin)
 
-    PLOTS_PATH = output_dir + '/plots/'
-    DATA_PATH  = output_dir + '/data/'
-
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(PLOTS_PATH, exist_ok=True)
-    os.makedirs(DATA_PATH,  exist_ok=True)
-
- 
-    mysim = Simulation(tasks, L, t_span, dt, IC,
-               states_path = DATA_PATH,
-                 meas_path = DATA_PATH)
-
-    mysim.evolve_state()
+        return qof.matkron([qof.ops(key) for key in bin])
 
 
-'''
-    p = mp.Pool(len(mySims))
-    p.map(Simulation.evolve_state, mySims)
-'''
+    def GHZ (self):
+        """
+        Generate GHZ state of size L
+        """
+        s1=['alive']*(self.L)
+        s2=['dead']*(self.L)
+        return (qof.matkron([qof.ops(key) for key in s1])+qof.matkron([qof.ops(key) for key in s2]))*1./sqrt(2.)
+
+
+    def one_alive (self,k):
+        """
+        generate a state with one livng site at k
+        """
+
+        base = ['dead']*self.L
+        base[k] = 'alive'
+
+        return qof.matkron([qof.ops(key) for key in base])
+
+    def W (self):
+        """
+        Generate W state of size L
+        """
+
+        return  1/sqrt(self.L)*sum([self.one_alive(k) for k in range(self.L)])
+
+
+    def all_alive (self):
+        dec = sum(2**n for n in range(0,self.L))
+
+        return self.fock(dec)
+
+
+    def make_state (self, state):
+        lego_states = { 'd': self.foc(int(''.join(ICchars[1:]))), \
+                        'G': self.GHZ(), \
+                        'W': self.W(), \
+                        'a': self.all_alive() }
+        return sum ([coeff * lego_states[lego_state] \
+                    for (lego_state, coeff) in state])
+
+
+    def evolve_state (self, start_state=None,):
+        """
+        Evolving the initial state forward in time and collecting measures of
+        the current state along the way
+
+        start_state:
+            A full lattice site
+
+        """
+
+        start_state = self.IC if start_state is None else start_state
+        if isfile(self.states_path):
+            print('Importing states...')
+            state_list = qio.read_cdata(self.states_path)
+
+        else:
+            print('Time evolving IC...')
+
+            state_list = [0]*self.nsteps
+            state = start_state
+            i = 0
+            for it in range(self.nmax):
+                state = self.model.prop.dot(state)
+
+                if it>=self.nmin:
+                    state_list[i] = state
+                    i = i+1
+            qio.write_cdata(self.states_path,state_list)
+
+        if isfile(self.meas_path):
+            print('Importing measurements...')
+            myMeas = qio.read_data(self.meas_path)
+            self.meas.results = myMeas
+
+        else:
+            print('Measuring states...')
+
+            for it in range(self.nsteps):
+                tic =lap.time()
+                t = it*self.dt + self.tmin
+                state = state_list[it]
+                self.meas.measure(state,t)
+                toc = lap.time()
+                print('t = ',t,' took ',toc-tic,'s')
+
+            qio.write_data(self.meas_path, self.meas.results)
+
+        return self.model, self.meas
+
 
 
 
