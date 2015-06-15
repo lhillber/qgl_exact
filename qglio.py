@@ -25,10 +25,3 @@ def read_cdata(path):
         splitdata = np.asarray(json.load(infile))
         data = splitdata[0]+1j*splitdata[1]
     return data
-
-def write_prop(path,data):
-    data = np.asarray(data)
-    data.tofile(path)
-
-def read_prop(path):
-   return np.fromfile(path,dtype=complex)

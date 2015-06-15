@@ -6,29 +6,6 @@ from functools import reduce
 from itertools import permutations
 
 
-# Global constants
-# ================
-# dictionary of local operators, local basis,
-# and permutation lists for N@ and N3 ops
-OPS = ({
-'I':np.array([[1.,0.],[0.,1.]]),
-'n':np.array([[0.,0.],[0.,1.]]),
-'nbar':np.array([[1.,0.],[0.,0.]]),
-'mix':np.array([[0.,1.],[1.,0.]]),
-'dead':np.array([[1.,0.]]).transpose(),
-'alive':np.array([[0.,1.]]).transpose(),
-'permutations_3':list(set([perm for perm in
-    permutations(['nbar','n','n','n'],4)])),
-'permutations_2':list(set([perm for perm in
-    permutations(['nbar','nbar','n','n'],4)]))
-})
-
-# Accessor (should just use the global OPS)
-# -----------------------------------------
-def ops(key):
-    return OPS[key]
-
-
 # Matrix functions
 # ================
 

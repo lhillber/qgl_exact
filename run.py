@@ -21,10 +21,10 @@ output_dir  = "../output"
 
 simulations = [ [Simulation (tasks = tasks,  L  = L,
                             t_span = t_span, dt = dt,
-                            IC     = IC,     output_dir = output_dir) \
-                     for dt     in dt_list \
-                     for t_span in t_span_list \
-                     for IC     in IC_list] \
+                            IC     = IC,     output_dir = output_dir)
+                     for dt     in dt_list
+                     for t_span in t_span_list
+                     for IC     in IC_list]
                 for L in L_list]
 
 # Run them!
