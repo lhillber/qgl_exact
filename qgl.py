@@ -15,8 +15,9 @@ import scipy.linalg as sla
 import scipy.sparse.linalg as spsla
 
 import qglopsfuncs as qof
+import qgl_util as qutil
 import qglio as qio
-
+import measures as qms
 
 
 #==============================================================================
@@ -28,8 +29,8 @@ class Model:
 
     # Build a model
     # -------------
-    def __init__(self, L, dt, IC, tasks,
-                    model_dir = '~/Documents/qgl_ediag/models'):
+    def __init__(self, L, dt, IC,
+                    model_dir = '~/Documents/qgl_ediag'):
         self.L  = L
         self.dt = dt
 
@@ -37,8 +38,10 @@ class Model:
         self.state_list = []
         self.measures   = []
 
-        self.ham_path  = model_dir + '/hamiltonians'
-        self.prop_path = model_dir + '/propogators'
+        self.ham_name = 'L'+str(self.L)+'_qgl_ham.mtx'
+        self.prop_name = 'L{}_dt{}'.format(self.L, self.dt)+'_qgl_prop'
+        self.ham_path  = model_dir + 'hamiltonians/'+self.ham_name
+        self.prop_path = model_dir + 'propogators/'+self.prop_name
 
         self.gen_model ()
 
@@ -110,20 +113,20 @@ class Model:
         # Propogator
         if isfile(self.prop_path):
             print('Importing Propagator...')
-            U0 = np.fromfile (path, dtype=complex)
+            U0 = np.fromfile (self.prop_path, dtype=complex)
         else:
             print('Building Propagator...')
             U0 = spsla.expm(-1j*self.dt*H).todense().tolist()
-        self.prop = np.array(U0)
+        self.prop = np.asarray(U0)
 
 
     def write_out (self):
-        sio.mmwrite(self.ham_path,H)
-        np.asarray(self.prop).tofile(self.prop_path)
+        sio.mmwrite(self.ham_path,self.ham)
+        self.prop.tofile(self.prop_path)
 
     # Generate states up to nmax
     # --------------------------
-    def time_evolve (nmax):
+    def time_evolve (self, nmax):
         new_states = [self.curr_state] * (nmax-len(self.state_list))
 
         for i in range(1,len(new_states)):
@@ -139,7 +142,7 @@ class Model:
 #==============================================================================
 
 class Simulation():
-    def __init__ (self, tasks, L, tspan, dt, IC, output_dir,
+    def __init__ (self, tasks, L, t_span, dt, IC, output_dir,
                     model_dir = '~/Documents/qgl_ediag/'):
 
         makedirs(output_dir, exist_ok=True)
@@ -147,19 +150,19 @@ class Simulation():
         self.tasks = tasks
         self.L = L
         self.dt = dt
-        self.nmin = round(tspan[0]/self.dt)
-        self.nmax = round(tspan[1]/self.dt)
+        self.nmin = round(t_span[0]/self.dt)
+        self.nmax = round(t_span[1]/self.dt)
         self.nsteps = self.nmax - self.nmin
 
-        self.IC = states.make_state(IC)
+        self.IC = qutil.make_state(self.L, IC)
 
-        self.model = Model (L, dt, model_dir = model_dir)
+        self.model = Model (L, dt, self.IC, model_dir = model_dir)
 
-        self.meas = Measurements (tasks = tasks)
+        self.meas = qms.Measurements (tasks = tasks)
 
-        self.sim_name = 'L{}_dt{}_tspan{}-{}_IC{}'.format ( \
-                L, dt, tspan[0], tspan[1], ''.join([ic[0] for ic in IC])
-
+        self.sim_name = 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
+                L, dt, t_span[0], t_span[1], ''.join([ic[0] for ic in IC]))
+        print(self.sim_name)
         self.states_path = output_dir + '/states/' + self.sim_name + '_states'
         self.meas_path = output_dir + '/states/' + self.sim_name + '_measures'
 

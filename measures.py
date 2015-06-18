@@ -3,74 +3,17 @@
 from functools import reduce
 from math import log, sqrt
 from itertools import permutations
+import numpy as np
 
 import epl
 import qglopsfuncs as qof
 import networkmeasures as nm
 
-
-# Global constants
-# ================
-# dictionary of local operators, local basis,
-# and permutation lists for N@ and N3 ops
-OPS = ({
-    'I':np.array([[1.,0.],[0.,1.]]),
-    'n':np.array([[0.,0.],[0.,1.]]),
-    'nbar':np.array([[1.,0.],[0.,0.]]),
-    'mix':np.array([[0.,1.],[1.,0.]]),
-    'dead':np.array([[1.,0.]]).transpose(),
-    'alive':np.array([[0.,1.]]).transpose(),
-    'permutations_3':list(set([perm for perm in
-        permutations(['nbar','n','n','n'],4)])),
-    'permutations_2':list(set([perm for perm in
-        permutations(['nbar','nbar','n','n'],4)]))
-})
-
-
-# States
-# ======
-
-class State:
-    def fock (self, L, dec):
-        state = [el.replace('0', 'dead').replace('1', 'alive')
-                for el in list('{0:0b}'.format(dec).rjust(L, '0'))]
-        return qof.matkron([OPS[key] for key in state])
-
-    def GHZ (self, L):
-        s1=['alive']*(L)
-        s2=['dead']*(L)
-        return (1.0/sqrt(2.0)) \
-                * ((qof.matkron([OPS[key] for key in s1]) \
-                    + qof.matkron([OPS[key] for key in s2])))
-
-    def one_alive (self, L, k):
-        base = ['dead']*L
-        base[k] = 'alive'
-        return qof.matkron([OPS[key] for key in base])
-
-    def W (self, L):
-        return (1.0/sqrt(L)) \
-                * sum ([self.one_alive(k) for k in range(L)])
-
-    def all_alive (self, L):
-        dec = sum ([2**n for n in range(0,L)])
-        return self.fock(dec)
-
-# *TODO* Fix state_chars
-    def make_state (self, L, state):
-        state_chars = [s[1] for s in state]
-        state_map = { 'd': self.foc(L, int(''.join(state_chars[1:]))),
-                      'G': self.GHZ(L),
-                      'W': self.W(L),
-                      'a': self.all_alive(L) }
-        return sum ([coeff * state_map[s] for (s, coeff) in state])
-
-
 # Measurements
 # ============
 
 class Measurements():
-    def __init__(self, tasks = ['t','n','MI','nn','BD']):
+    def __init__(self,tasks):
         self.tasks = tasks
         self.measures = {key:[] for key in tasks }
         return
@@ -84,6 +27,30 @@ class Measurements():
         nstop = len(states) if nstop == None else nstop
         return [ self.measure(state, i*dt)
                 for i,state in enumerate (states[nstart:nstop:ninc]) ]
+
+    def measure (self, state, t):
+        """
+        Carry out measurements on state of the system
+        """
+
+        for key in self.tasks:
+
+            if key == 'n':
+                self.measures[key].append(self.ncalc(state))
+
+            elif key == 'MI':
+                self.measures[key].append(self.MIcalc(state))
+
+            elif key == 't':
+                self.measures[key].append(t)
+
+            elif key == 'BD':
+                self.measures[key].append(self.bdcalc(state))
+
+            elif key == 'nn':
+                self.measures[key].append(self.nncalc(state))
+
+        return
 
     # reduced density matrix (rdm) for sites in klist
     # [1,2] for klist would give rho1_2
@@ -266,28 +233,5 @@ class Measurements():
         return [np.count_nonzero(filter(lambda el: el > 1e-14, sla.eigvalsh(self.rdm(state,ks)))) for ks in klist ]
 
 
-    def measure (self, state, t):
-        """
-        Carry out measurements on state of the system
-        """
-
-        for key in self.tasks:
-
-            if key == 'n':
-                self.measures[key].append(self.ncalc(state))
-
-            elif key == 'MI':
-                self.measures[key].append(self.MIcalc(state))
-
-            elif key == 't':
-                self.measures[key].append(t)
-
-            elif key == 'BD':
-                self.measures[key].append(self.bdcalc(state))
-
-            elif key == 'nn':
-                self.measures[key].append(self.nncalc(state))
-
-        return
 
 

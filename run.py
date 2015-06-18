@@ -19,7 +19,7 @@ output_dir  = "../output"
 # Simulations to Run
 # ------------------
 
-simulations = [ [Simulation (tasks = tasks,  L  = L,
+simulations = [ [qgl.Simulation (tasks = tasks,  L = L,
                             t_span = t_span, dt = dt,
                             IC     = IC,     output_dir = output_dir)
                      for dt     in dt_list
@@ -30,4 +30,6 @@ simulations = [ [Simulation (tasks = tasks,  L  = L,
 # Run them!
 # ---------
 
-qgl.run_sims(simulations)
+print(simulations[0])
+
+simulations[0][0].run_sim()
