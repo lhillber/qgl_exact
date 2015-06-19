@@ -14,7 +14,7 @@ dt_list     = [1.0]
 tasks       = ['t', 'n', 'nn', 'MI']
 t_span_list = [(0.0, 10.0)]
 IC_list     = [[('a',0.0), ('W',1.0)]]
-output_dir  = "../output"
+output_dir  = "output"
 
 # Simulations to Run
 # ------------------

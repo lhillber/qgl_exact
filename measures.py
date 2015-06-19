@@ -4,18 +4,20 @@ from functools import reduce
 from math import log, sqrt
 from itertools import permutations
 import numpy as np
-
+import json
+import scipy.linalg as sla
 import epl
-import qglopsfuncs as qof
+from qgl_util import *
 import networkmeasures as nm
 
 # Measurements
 # ============
 
 class Measurements():
-    def __init__(self,tasks):
+    def __init__(self, tasks, meas_file):
         self.tasks = tasks
         self.measures = {key:[] for key in tasks }
+        self.meas_file = meas_file
         return
 
     def __getitem__(self,key):
@@ -51,6 +53,18 @@ class Measurements():
                 self.measures[key].append(self.nncalc(state))
 
         return
+    
+    def write_out(self):
+        data = np.asarray(self.measures).tolist()
+        with open(self.meas_file,'w') as outfile:
+            json.dump(data, outfile)
+        return
+
+    def read_data(path):
+        with open(path,'r') as infile:
+            data = json.load(infile)
+        return data
+
 
     # reduced density matrix (rdm) for sites in klist
     # [1,2] for klist would give rho1_2
@@ -102,7 +116,7 @@ class Measurements():
         nexplist = [self.expval(state,self.Ni(k,L)) for k in range(L)]
         print(nexplist)
         dis = [0 if ni<0.5 else 1 for ni in nexplist]
-        den = qof.average(nexplist)
+        den = np.mean(nexplist)
         div = epl.diversity(epl.cluster(dis))
 
         return {'nexp':nexplist,'DIS':dis,'DIV':div,'DEN':den}
@@ -120,7 +134,7 @@ class Measurements():
         eyelist[k] = 'n'
         matlist_N = [OPS[key] for key in eyelist]
 
-        return qof.spmatkron(matlist_N)
+        return spmatkron(matlist_N)
 
 
     def expval (self, state, mat):
@@ -132,7 +146,7 @@ class Measurements():
         mat:
             Matrix representation of observable in full Hilbert space
         """
-        return np.real(qof.dagger(state).dot(mat*state))[0][0]
+        return np.real(dagger(state).dot(mat*state))[0][0]
 
 
     def entropy (self, prho):

@@ -3,7 +3,7 @@
 from multiprocessing import Pipe
 from multiprocessing import Process
 
-from os import makedirs
+from os import makedirs, environ
 from os.path import isfile
 
 import time as lap
@@ -14,9 +14,7 @@ import scipy.io as sio
 import scipy.linalg as sla
 import scipy.sparse.linalg as spsla
 
-import qglopsfuncs as qof
-import qgl_util as qutil
-import qglio as qio
+from qgl_util import *
 import measures as qms
 
 
@@ -30,7 +28,7 @@ class Model:
     # Build a model
     # -------------
     def __init__(self, L, dt, IC,
-                    model_dir = '~/Documents/qgl_ediag'):
+                    model_dir = environ['HOME']+'/Documents/qgl_ediag'):
         self.L  = L
         self.dt = dt
 
@@ -41,7 +39,7 @@ class Model:
         self.ham_name = 'L'+str(self.L)+'_qgl_ham.mtx'
         self.prop_name = 'L{}_dt{}'.format(self.L, self.dt)+'_qgl_prop'
         self.ham_path  = model_dir + 'hamiltonians/'+self.ham_name
-        self.prop_path = model_dir + 'propogators/'+self.prop_name
+        self.prop_path = model_dir + 'propagators/'+self.prop_name
 
         self.gen_model ()
 
@@ -54,7 +52,7 @@ class Model:
         returns the N3 operator of the QGL model at site k
         """
         n3=0
-        for  tup in qof.ops('permutations_3'):
+        for  tup in OPS['permutations_3']:
             local_matlist3 = [tup[0],tup[1],'mix',tup[2],tup[3]]
             if k==0:
                 del local_matlist3[0]
@@ -69,8 +67,8 @@ class Model:
                 del local_matlist3[3]
             matlist3 = ['I']*(k-2)+local_matlist3
             matlist3 = matlist3 +['I']*(self.L-len(matlist3))
-            matlist3 = [qof.ops(key) for key in matlist3]
-            n3 = n3 + qof.spmatkron(matlist3)
+            matlist3 = [OPS[key] for key in matlist3]
+            n3 = n3 + spmatkron(matlist3)
         return n3
 
 
@@ -81,7 +79,7 @@ class Model:
         returns the N2 operator of the QGL model at site k
         """
         n2 = 0
-        for tup in qof.ops('permutations_2'):
+        for tup in OPS['permutations_2']:
             local_matlist2 = [tup[0],tup[1],'mix',tup[2],tup[3]]
             if k==0:
                 del local_matlist2[0]
@@ -96,32 +94,33 @@ class Model:
                 del local_matlist2[3]
             matlist2 = ['I']*(k-2)+local_matlist2
             matlist2 = matlist2+['I']*(self.L-len(matlist2))
-            matlist2 = [qof.ops(key) for key in matlist2]
-            n2 = n2 + qof.spmatkron(matlist2)
+            matlist2 = [OPS[key] for key in matlist2]
+            n2 = n2 + spmatkron(matlist2)
         return n2
 
     def gen_model (self):
         # Hamiltonian
         if isfile(self.ham_path):
-            print('Imporiting Hamiltonian...')
+            print('Importing Hamiltonian...')
             H = sio.mmread(self.ham_path).tocsc()
         else:
             print('Building Hamiltonian...')
             H = sum ([(self.N2(k) + self.N3(k)) for k in range(self.L)])
-        self.ham = np.array(H)
+        self.ham = H
 
         # Propogator
         if isfile(self.prop_path):
             print('Importing Propagator...')
-            U0 = np.fromfile (self.prop_path, dtype=complex)
+            U0 = np.fromfile (self.prop_path, dtype=complex)[0]
         else:
             print('Building Propagator...')
-            U0 = spsla.expm(-1j*self.dt*H).todense().tolist()
+            U0 = spsla.expm(-1j*self.dt*H).todense()
         self.prop = np.asarray(U0)
 
 
     def write_out (self):
-        sio.mmwrite(self.ham_path,self.ham)
+        print(self.ham)
+        sio.mmwrite(self.ham_path, self.ham)
         self.prop.tofile(self.prop_path)
 
     # Generate states up to nmax
@@ -143,9 +142,9 @@ class Model:
 
 class Simulation():
     def __init__ (self, tasks, L, t_span, dt, IC, output_dir,
-                    model_dir = '~/Documents/qgl_ediag/'):
+                    model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
 
-        makedirs(output_dir, exist_ok=True)
+        makedirs(model_dir+output_dir, exist_ok=True)
 
         self.tasks = tasks
         self.L = L
@@ -154,18 +153,21 @@ class Simulation():
         self.nmax = round(t_span[1]/self.dt)
         self.nsteps = self.nmax - self.nmin
 
-        self.IC = qutil.make_state(self.L, IC)
+        self.IC = make_state(self.L, IC)
 
         self.model = Model (L, dt, self.IC, model_dir = model_dir)
 
-        self.meas = qms.Measurements (tasks = tasks)
+        IC_name = '-'.join(['{}{:0.3f}'.format(name,val) \
+                for (name, val) in IC])
 
         self.sim_name = 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
-                L, dt, t_span[0], t_span[1], ''.join([ic[0] for ic in IC]))
-        print(self.sim_name)
-        self.states_path = output_dir + '/states/' + self.sim_name + '_states'
-        self.meas_path = output_dir + '/states/' + self.sim_name + '_measures'
+                L, dt, t_span[0], t_span[1], IC_name)
 
+        #self.states_path = output_dir + '/states/' + self.sim_name + '_states'
+        
+        meas_file = model_dir+output_dir+'/'+self.sim_name+'.meas'
+        self.meas = qms.Measurements (tasks = tasks, meas_file = meas_file)
+ 
         return
 
     def run_sim (self):
