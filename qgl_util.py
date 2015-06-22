@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse as sps
 from functools import reduce
 from itertools import permutations
-
+from multiprocessing import Process, Pipe
 
 
 # Global constants
@@ -122,6 +122,12 @@ def make_state (L, state):
 # ===========
 # http://stackoverflow.com/questions/3288595/multiprocessing-using-pool-map-on-a-function-defined-in-a-class
 
+
+def run_sims(sims_with_L):
+    for sim in sims_with_L:
+        sim.run_sim()
+
+
 # Wrapper for multiprocessing
 # ---------------------------
 def spawn_proc (f):
@@ -138,3 +144,5 @@ def multi_runs (f, X):
     [p.start() for p in proc]
     [p.join() for p in proc]
     return [p.recv() for (p,c) in pipe]
+
+

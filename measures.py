@@ -60,12 +60,7 @@ class Measurements():
             json.dump(data, outfile)
         return
 
-    def read_data(path):
-        with open(path,'r') as infile:
-            data = json.load(infile)
-        return data
-
-
+    
     # reduced density matrix (rdm) for sites in klist
     # [1,2] for klist would give rho1_2
     def rdm(self, state, klist):
@@ -114,7 +109,6 @@ class Measurements():
         """
         L = int(log(len(state),2))
         nexplist = [self.expval(state,self.Ni(k,L)) for k in range(L)]
-        print(nexplist)
         dis = [0 if ni<0.5 else 1 for ni in nexplist]
         den = np.mean(nexplist)
         div = epl.diversity(epl.cluster(dis))

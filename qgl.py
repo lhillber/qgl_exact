@@ -5,9 +5,7 @@ from multiprocessing import Process
 
 from os import makedirs, environ
 from os.path import isfile
-
-import time as lap
-
+import time as lap 
 import numpy as np
 import scipy.sparse as sps
 import scipy.io as sio
@@ -40,8 +38,6 @@ class Model:
         self.prop_name = 'L{}_dt{}'.format(self.L, self.dt)+'_qgl_prop'
         self.ham_path  = model_dir + 'hamiltonians/'+self.ham_name
         self.prop_path = model_dir + 'propagators/'+self.prop_name
-
-        self.gen_model ()
 
         return
 
@@ -110,16 +106,15 @@ class Model:
 
         # Propogator
         if isfile(self.prop_path):
-            print('Importing Propagator...')
+            print('Importing propagator...')
             U0 = np.fromfile (self.prop_path, dtype=complex)[0]
         else:
-            print('Building Propagator...')
+            print('Building propagator...')
             U0 = spsla.expm(-1j*self.dt*H).todense()
         self.prop = np.asarray(U0)
 
 
     def write_out (self):
-        print(self.ham)
         sio.mmwrite(self.ham_path, self.ham)
         self.prop.tofile(self.prop_path)
 
@@ -127,7 +122,7 @@ class Model:
     # --------------------------
     def time_evolve (self, nmax):
         new_states = [self.curr_state] * (nmax-len(self.state_list))
-
+        print('Time evolving IC...')
         for i in range(1,len(new_states)):
             new_states[i] = self.prop.dot(new_states[i-1])
 
@@ -171,6 +166,7 @@ class Simulation():
         return
 
     def run_sim (self):
+        self.model.gen_model()
         self.model.time_evolve (self.nmax)
         self.model.write_out ()
         self.meas.take_measurements (self.model.state_list, self.dt)

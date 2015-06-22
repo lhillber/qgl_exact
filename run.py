@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
 import qgl
-
+import qgl_util
+import qglplotting
+from math import sin, cos, pi
 
 # QGL Simulation
 # ==============
@@ -9,12 +11,14 @@ import qgl
 # Simulation Parameters
 # ---------------------
 
-L_list      = [10]
-dt_list     = [1.0]
+th_list = [0.0, pi/2 ]
+
+L_list      = [7,8]
+dt_list     = [0.1]
 tasks       = ['t', 'n', 'nn', 'MI']
-t_span_list = [(0.0, 10.0)]
-IC_list     = [[('a',0.0), ('W',1.0)]]
-output_dir  = "output"
+t_span_list = [(0.0, 4.0)]
+IC_list     = [[('a', cos(th)), ('W',sin(th))] for th in th_list]
+output_dir  = "multiproc"
 
 # Simulations to Run
 # ------------------
@@ -30,6 +34,14 @@ simulations = [ [qgl.Simulation (tasks = tasks,  L = L,
 # Run them!
 # ---------
 
-print(simulations[0])
+qgl_util.multi_runs(qgl_util.run_sims,   simulations)
 
-simulations[0][0].run_sim()
+
+
+# Post Processing
+# ===============
+
+#qglplotting.main(output_dir, L_list, dt_list, \
+#        t_span_list, IC_list, th_list)
+
+

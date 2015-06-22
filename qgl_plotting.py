@@ -8,33 +8,37 @@ import numpy as np
 import networkmeasures as nm
 import qglopsfuncs as qof
 import qglio as qio
-import os
+from os import makedirs, environ
 import scipy.fftpack as spf
-from collections import OrderedDict
+
+
 font = {'family':'normal', 'weight':'bold', 'size':16}
 mpl.rc('font',**font)
 
-def IC_string(IC):
-    return '_'.join(['{}_{}'.format(k,v) for k,v in IC.items()])
+def IC_name(IC):
+    return '-'.join(['{}{:0.3f}'.format(name,val) \
+                for (name, val) in IC])
 
-def sim_name(batch_path,L,dt,tspan,IC,subdir='data'):
-    meas_name = 'L'+str(L)+'_dt'+str(dt)+'_tspan'+str(tspan[0])+'-'+str(tspan[1])+'_IC'+IC_string(IC)
-    return '../'+batch_path+'/'+subdir+'/'+meas_name
+def sim_name(L, dt, t_span, IC):
+    return 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
+                L, dt, t_span[0], t_span[1], IC_name(IC))
+  
+def meas_file(output_dir, L, dt, t_span, IC, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
+    return model_dir+output_dir+'/'+sim_name(L, dt, t_span, IC)+'.meas'
 
-def import_data(batch_path,L,dt,tspan,IC):
-    fname = sim_name(batch_path,L,dt,tspan,IC,subdir='data')+'_meas.json'
-    mydata = qio.read_data(fname)
+def import_ham(L, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
+    hame_name = 'L'+str(self.L)+'_qgl_ham.mtx'
+    ham_dir = model_dir + 'hamiltonians/'+self.ham_name
+    return sio.mmread(ham_dr)
+
+def import_data(output_dir, L, dt, t_span, IC):
+    mydata = qio.read_data(meas_file(output_dir, L, dt, t_span, IC))
     mydata['L']=L
     mydata['dt']=dt
-    mydata['tspan']=tspan
+    mydata['t_span']=t_span
     mydata['IC']=IC
-    mydata['Nsteps']=round((tspan[1]-tspan[0])/dt)
+    mydata['Nsteps']=round((t_span[1]-t_span[0])/dt)
     return mydata
-
-def import_ham(L):
-    ham_path ='../data/hamiltonians/L'+str(L)+'_ham.mtx'
-    return sio.mmread(self.ham_path).tocsc()
-
 
 def make_time_series(mydata,task,subtask):
     time_series = [mydata[task][i][subtask] for i in range(mydata['Nsteps'])]
@@ -59,8 +63,8 @@ def make_fft(mydata,task,subtask):
 
 
 def plot_time_series(mydata,task,subtask,fignum=1,ax=111,yax_label='yax_label',title='title',start=None,end=None):
-    start = mydata['tspan'][0] if start is None else start
-    end = mydata['tspan'][1] if end is None else end
+    start = mydata['t_span'][0] if start is None else start
+    end = mydata['t_span'][1] if end is None else end
     times, time_series = make_time_series(mydata,task,subtask)
     fig = plt.figure(fignum)
     fig.add_subplot(ax)
@@ -135,8 +139,8 @@ def time_average(mydata,task,subtask):
 
 def plot_board(mydata,task,subtask,fignum=1,ax=111,yax_label='Site Number',title='The Quantum Game of Life',start=0,end=None,nticks=5):
     L = mydata['L']
-    tmax = mydata['tspan'][1]
-    tmin = mydata['tspan'][0]
+    tmax = mydata['t_span'][1]
+    tmin = mydata['t_span'][0]
     dt = mydata['dt']
     Nsteps = mydata['Nsteps']
     end = Nsteps if end is None else end
@@ -195,19 +199,21 @@ def multipage(fname, figs=None, clf=True, dpi=300):
     return
 
 
-def make_tave_sweep(batch_path,L,dt,tspan,IClist,task,subtask):
+def make_tave_sweep(output_dir, L, dt, t_span, IC_list, task, subtask):
     avelist = []
     varlist = []
-    for IC in IClist:
-        IC = OrderedDict(IC)
-        mydata = import_data(batch_path,L,dt,tspan,IC)
+    for IC in IC_list:
+        mydata = import_data(output_dir, L, dt, t_span, IC)
         ave,var = time_average(mydata,task,subtask)
         avelist.append(ave)
         varlist.append(var)
     return avelist, varlist
 
-def plot_tave_sweep(batch_path,L,dt,tspan,IClist,task,subtask,thlist,fignum=1,ax=111,yax_label='Equilibrium val.',title='title'):
-    avelist,varlist = make_tave_sweep(batch_path,L,dt,tspan,IClist,task,subtask) 
+def plot_tave_sweep(output_dir, L, dt, t_span, IC_list, task, subtask, thlist, \
+        fignum=1, ax=111, yax_label = 'Equilibrium val.', title = 'title'):
+    
+    avelist,varlist = make_tave_sweep(output_dir, L, dt, t_span, \
+            IC_list, task, subtask) 
     fig = plt.figure(fignum)
     fig.add_subplot(ax)
     fmt = '-o'
@@ -273,34 +279,35 @@ def time_plots(mydata):
     plt.tight_layout()
     return
 
-def theta_plots(batch_path,L,dt,tspan,IClist,thlist):
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'n','DEN',thlist,fignum=22,ax=111,yax_label=r'$\rho_{\infty}$',title=r'Equilibrium $\rho$')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'n','DIV',thlist,fignum=23,ax=111,yax_label=r'$\Delta_{\infty}$',title=r'Equilibrium $\Delta$')
+def theta_plots(output_dir,L,dt,t_span,IC_list,thlist):
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'n','DEN',thlist,fignum=22,ax=111,yax_label=r'$\rho_{\infty}$',title=r'Equilibrium $\rho$')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'n','DIV',thlist,fignum=23,ax=111,yax_label=r'$\Delta_{\infty}$',title=r'Equilibrium $\Delta$')
    
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'MI','CC',thlist,fignum=24,ax=111,yax_label=r'CC$_{\infty}$',title=r'$\mathcal{I}_{ij}$ Equilibrium CC')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'MI','ND',thlist,fignum=25,ax=111,yax_label=r'ND$_{\infth}$',title=r'$\mathcal{I}_{ij}$ Equilibrium ND')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'MI','Y',thlist,fignum=26,ax=111,yax_label=r'Y$_{\infty}$',title=r'$\mathcal{I}_{ij}$ Equilibrium Y')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'MI','HL',thlist,fignum=27,ax=111,yax_label=r'IHL$_{\infty}$',title=r'$\mathcal{I}_{ij}$ Equilibrium IHL')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'MI','CC',thlist,fignum=24,ax=111,yax_label=r'CC$_{\infty}$',title=r'$\mathcal{I}_{ij}$ Equilibrium CC')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'MI','ND',thlist,fignum=25,ax=111,yax_label=r'ND$_{\infth}$',title=r'$\mathcal{I}_{ij}$ Equilibrium ND')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'MI','Y',thlist,fignum=26,ax=111,yax_label=r'Y$_{\infty}$',title=r'$\mathcal{I}_{ij}$ Equilibrium Y')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'MI','HL',thlist,fignum=27,ax=111,yax_label=r'IHL$_{\infty}$',title=r'$\mathcal{I}_{ij}$ Equilibrium IHL')
    
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'nn','CC',thlist,fignum=28,ax=111,yax_label=r'CC$_{\infty}$',title=r'g$_{ij}$ Equilibrium CC')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'nn','ND',thlist,fignum=29,ax=111,yax_label=r'ND$_{\infty}$',title=r'g$_{ij}$ Equilibrium ND')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'nn','Y',thlist,fignum=30,ax=111,yax_label=r'Y$_{\infty}$',title=r'g$_{ij}$ Equilibrium Y')
-   plot_tave_sweep(batch_path,L,dt,tspan,IClist,'nn','HL',thlist,fignum=31,ax=111,yax_label=r'IHL$_{\infty}$',title=r'g$_{ij}$ Equilibrium IHL')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'nn','CC',thlist,fignum=28,ax=111,yax_label=r'CC$_{\infty}$',title=r'g$_{ij}$ Equilibrium CC')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'nn','ND',thlist,fignum=29,ax=111,yax_label=r'ND$_{\infty}$',title=r'g$_{ij}$ Equilibrium ND')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'nn','Y',thlist,fignum=30,ax=111,yax_label=r'Y$_{\infty}$',title=r'g$_{ij}$ Equilibrium Y')
+   plot_tave_sweep(output_dir,L,dt,t_span,IC_list,'nn','HL',thlist,fignum=31,ax=111,yax_label=r'IHL$_{\infty}$',title=r'g$_{ij}$ Equilibrium IHL')
    plt.tight_layout() 
 
-def main(batch_path,Llist,dtlist,tspanlist,IClist,thlist):
-    for L in Llist:
-        for dt in dtlist:
-            for tspan in tspanlist:
-#                theta_plots(batch_path,L,dt,tspan,IClist,thlist)
-#                multipage('../'+batch_path+'/plots/'+'equibvals.pdf',clf=False)
+def main(output_dir, L_list, dt_list, t_span_list, IC_list, th_list, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
+    plots_dir = model_dir+output_dir+'/plots'
+    makedirs(plots_dir, exist_ok=True)
+    for L in L_list:
+        for dt in dt_list:
+            for t_span in t_span_list:
+#                theta_plots(output_dir,L,dt,t_span,IC_list,th_list)
+#                multipage('../'+output_dir+'/plots/'+'equibvals.pdf',clf=False)
 #                '''
-                for ic in IClist[::8]:
-                    IC = OrderedDict(ic)
-                    mydata = import_data(batch_path,L,dt,tspan,IC) 
+                for IC in IC_list:
+                    mydata = import_data(output_dir, L, dt, t_span, IC) 
                     plt.close()
                     time_plots(mydata)
-                    multipage(sim_name(batch_path,L,dt,tspan,IC,subdir='plots')+'.pdf')
+                    multipage(plots_dir+'/'+sim_name(L, dt, t_span, IC)+'.pdf')
                     plt.close()
 #                '''
 
