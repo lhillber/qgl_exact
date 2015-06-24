@@ -1,5 +1,4 @@
-#!/usr/bin/python
-
+#!/usr/bin/python3
 from functools import reduce
 from math import log, sqrt
 from itertools import permutations
@@ -9,6 +8,8 @@ import scipy.linalg as sla
 import epl
 from qgl_util import *
 import networkmeasures as nm
+
+
 
 # Measurements
 # ============
@@ -25,16 +26,15 @@ class Measurements():
 
     # Take measurements at each timestep
     # ----------------------------------
-    def take_measurements (self, states, dt, nstart = 0, nstop = None, ninc = 1):
-        nstop = len(states) if nstop == None else nstop
-        return [ self.measure(state, i*dt)
-                for i,state in enumerate (states[nstart:nstop:ninc]) ]
+    def take_measurements (self, states, dt, nmin, nmax, ninc = 1):
+        return [ self.measure(state, i*dt + nmin*dt) \
+                for i,state in enumerate (states[nmin:nmax:ninc]) ]
 
     def measure (self, state, t):
         """
         Carry out measurements on state of the system
         """
-
+        print(t)
         for key in self.tasks:
 
             if key == 'n':
@@ -60,6 +60,10 @@ class Measurements():
             json.dump(data, outfile)
         return
 
+    def read_in(self, meas_file):
+        with open(meas_file, 'r') as infile:
+           data =  json.load(infile)
+        return data
     
     # reduced density matrix (rdm) for sites in klist
     # [1,2] for klist would give rho1_2

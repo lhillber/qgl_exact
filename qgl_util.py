@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 from math import sqrt
 import numpy as np
 import scipy.sparse as sps
@@ -61,6 +61,15 @@ def fock (L, dec):
             for el in list('{0:0b}'.format(dec).rjust(L, '0'))]
     return matkron([OPS[key] for key in state])
 
+# Create a symetric state from an asymetric one
+# ---------------------------------------------
+def symetrize_fock(L, dec):
+    b = '{0:0'+str(L)+'b}'
+    b = b.format(dec)
+    dec_reversed = int(''.join(list(reversed(b))),2)
+    dec_sym = dec + dec_reversed
+    return fock(L, dec_sym)
+
 # Create GHZ state
 # ----------------
 def GHZ (L):
@@ -93,6 +102,7 @@ def all_alive (L):
 # ------------------------
 def state_map (key, L, dec):
     smap = { 'd': fock(L, dec),
+             's': symetrize_fock(L, dec),
              'G': GHZ(L),
              'W': W(L),
              'a': all_alive(L) }
@@ -105,15 +115,14 @@ def make_state (L, state):
     state_chars_list = map(lambda x: list(x), state_chars)
     state_coeffs = [s[1] for s in state] 
     ziped = zip(state_chars_list, state_coeffs)
-    
-    state = np.asarray([[0]*(2**L)]).transpose()
-    for (s, coeff) in ziped:
-        if len(s)>1:
-            dec = int(''.join(s[1:]))
+    state = np.asarray([[0.]*(2**L)]).transpose()
+    for (chars, coeff) in ziped:
+        if len(chars)>1:
+            dec = int(''.join(chars[1:]))
         else: 
             dec = 0
 
-        state = state + coeff * state_map(s[0], L, dec)
+        state = state + coeff * state_map(chars[0], L, dec)
     return state
 
 
@@ -126,7 +135,7 @@ def make_state (L, state):
 def run_sims(sims_with_L):
     for sim in sims_with_L:
         sim.run_sim()
-
+        del sim
 
 # Wrapper for multiprocessing
 # ---------------------------

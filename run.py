@@ -1,9 +1,9 @@
-#!/usr/bin/python
-
+#!/usr/bin/python3
 import qgl
 import qgl_util
-import qglplotting
+import qgl_plotting
 from math import sin, cos, pi
+import numpy as np
 
 # QGL Simulation
 # ==============
@@ -11,14 +11,16 @@ from math import sin, cos, pi
 # Simulation Parameters
 # ---------------------
 
-th_list = [0.0, pi/2 ]
+post_processing = True
 
-L_list      = [7,8]
-dt_list     = [0.1]
+th_list = np.linspace(0.0, pi/4, 25)
+L_list      = [5,8,11]
+dt_list     = [0.01]
 tasks       = ['t', 'n', 'nn', 'MI']
-t_span_list = [(0.0, 4.0)]
+t_span_list = [(100, 120)]
 IC_list     = [[('a', cos(th)), ('W',sin(th))] for th in th_list]
-output_dir  = "multiproc"
+#IC_list = [[('s3',1.0)]]
+output_dir  = "avW5_8_11"
 
 # Simulations to Run
 # ------------------
@@ -33,15 +35,12 @@ simulations = [ [qgl.Simulation (tasks = tasks,  L = L,
 
 # Run them!
 # ---------
-
-qgl_util.multi_runs(qgl_util.run_sims,   simulations)
-
+if not post_processing:
+    qgl_util.multi_runs(qgl_util.run_sims, simulations)
 
 
 # Post Processing
 # ===============
-
-#qglplotting.main(output_dir, L_list, dt_list, \
-#        t_span_list, IC_list, th_list)
-
-
+if post_processing:
+    qgl_plotting.main(output_dir, L_list, dt_list, \
+        t_span_list, IC_list, th_list)

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 from multiprocessing import Pipe
 from multiprocessing import Process
@@ -107,7 +107,9 @@ class Model:
         # Propogator
         if isfile(self.prop_path):
             print('Importing propagator...')
-            U0 = np.fromfile (self.prop_path, dtype=complex)[0]
+            U0 = np.fromfile (self.prop_path)
+            U_dim = 2**(self.L)
+            U0 = ( U0[0:len(U0)-1:2] + 1j*U0[1:len(U0):2] ).reshape((U_dim,U_dim))
         else:
             print('Building propagator...')
             U0 = spsla.expm(-1j*self.dt*H).todense()
@@ -161,6 +163,7 @@ class Simulation():
         #self.states_path = output_dir + '/states/' + self.sim_name + '_states'
         
         meas_file = model_dir+output_dir+'/'+self.sim_name+'.meas'
+        
         self.meas = qms.Measurements (tasks = tasks, meas_file = meas_file)
  
         return
@@ -169,5 +172,6 @@ class Simulation():
         self.model.gen_model()
         self.model.time_evolve (self.nmax)
         self.model.write_out ()
-        self.meas.take_measurements (self.model.state_list, self.dt)
+        self.meas.take_measurements (self.model.state_list, \
+                self.dt, self.nmin, self.nmax)
         self.meas.write_out ()
