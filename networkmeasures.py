@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import numpy as np
-import networkx as nx
+#import networkx as nx
+
 #Scripted by David Vargas
 #---------------------------------------------
 #Convention if directed networks are introduced,
@@ -82,6 +83,7 @@ def distance(mutualinformation):
             else:
                 thisdistance[i,j]=np.power(mutualinformation[i,j],-1)
     return thisdistance
+'''
 def geodesic(distance,i,j):
     #Initialize networkx graph object
     #NetworkX indexing starts at zero.
@@ -110,7 +112,7 @@ def harmoniclength(distance):
         return 0
     else:
         return factor*sum(alist)
-
+'''
 def strengthdist(mutualinformation,bincount):
     #Compute the weighted analog of a degree distribution.
     strengths=nm.strengths(mutualinformation)
