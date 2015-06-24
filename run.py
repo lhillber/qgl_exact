@@ -11,16 +11,16 @@ import numpy as np
 # Simulation Parameters
 # ---------------------
 
-post_processing = True
+post_processing = False
 
 th_list = np.linspace(0.0, pi/4, 25)
-L_list      = [5,8,11]
-dt_list     = [0.01]
+L_list      = [7,8,9]
+dt_list     = [0.1]
 tasks       = ['t', 'n', 'nn', 'MI']
-t_span_list = [(100, 120)]
-IC_list     = [[('a', cos(th)), ('W',sin(th))] for th in th_list]
-#IC_list = [[('s3',1.0)]]
-output_dir  = "avW5_8_11"
+t_span_list = [(0, 5)]
+#IC_list     = [[('a', cos(th)), ('W',sin(th))] for th in th_list]
+IC_list = [[('a',1.0)]]
+output_dir  = "fock_sample"
 
 # Simulations to Run
 # ------------------

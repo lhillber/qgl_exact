@@ -199,9 +199,9 @@ class Measurements():
         MICC = nm.clustering(MInet)
         MIdensity = nm.density(MInet)
         MIdisparity = nm.disparity(MInet)
-        MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
+        #MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
 
-        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':MIharmoniclen}
+        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':1}
 
 
     def nncorrelation (self, state,i,j):
@@ -233,9 +233,9 @@ class Measurements():
         nnCC = nm.clustering(nnnet)
         nndensity = nm.density(nnnet)
         nndisparity = nm.disparity(nnnet)
-        nnharmoniclen = nm.harmoniclength(nm.distance(nnnet))
+        #nnharmoniclen = nm.harmoniclength(nm.distance(nnnet))
 
-        return {'net':nnnet.tolist(),'CC':nnCC,'ND':nndensity,'Y':nndisparity,'HL':nnharmoniclen}
+        return {'net':nnnet.tolist(),'CC':nnCC,'ND':nndensity,'Y':nndisparity,'HL':1}
 
 
     def bdcalc (self, state):
