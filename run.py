@@ -4,7 +4,7 @@ import qgl_util
 import qgl_plotting
 from math import sin, cos, pi
 import numpy as np
-
+from mpi4py import MPI
 # QGL Simulation
 # ==============
 
@@ -20,7 +20,7 @@ tasks       = ['t', 'n', 'nn', 'MI']
 t_span_list = [(0, 5)]
 #IC_list     = [[('a', cos(th)), ('W',sin(th))] for th in th_list]
 IC_list = [[('a',1.0)]]
-output_dir  = "fock_sample"
+output_dir  = "over_populated"
 
 # Simulations to Run
 # ------------------
@@ -36,8 +36,15 @@ simulations = [ [qgl.Simulation (tasks = tasks,  L = L,
 # Run them!
 # ---------
 if not post_processing:
-    qgl_util.multi_runs(qgl_util.run_sims, simulations)
-
+#    qgl_util.multi_runs(qgl_util.run_sims, simulations)
+    comm = MPI.COMM_WORLD
+    if comm.Get_rank() == 0:
+        for i,sims_with_L in enumerate(simulations):
+            comm.send(sims_with_L, dest = i+1)
+    if comm.Get_rank() != 0:
+        my_sims_with_L = comm.recv(source = 0)
+        qgl_util.run_sims(sims_with_L)
+    
 
 # Post Processing
 # ===============
