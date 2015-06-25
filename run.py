@@ -43,7 +43,7 @@ if not post_processing:
             comm.send(sims_with_L, dest = i+1)
     if comm.Get_rank() != 0:
         my_sims_with_L = comm.recv(source = 0)
-        qgl_util.run_sims(sims_with_L)
+        qgl_util.run_sims(my_sims_with_L)
     
 
 # Post Processing
