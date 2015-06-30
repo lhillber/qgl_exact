@@ -10,9 +10,10 @@ from qgl_util import *
 import networkmeasures as nm
 
 
-
-# Measurements
-# ============
+# ==========================================================
+# Measurements class
+# suite of measurements available to make at each times step
+# ==========================================================
 
 class Measurements():
     def __init__(self, tasks, meas_file):
@@ -20,7 +21,9 @@ class Measurements():
         self.measures = {key:[] for key in tasks }
         self.meas_file = meas_file
         return
-
+    
+    # Easy retreval of data
+    # ----------------------
     def __getitem__(self,key):
         return self.measures[key]
 
@@ -30,6 +33,8 @@ class Measurements():
         return [ self.measure(state, i*dt + nmin*dt) \
                 for i,state in enumerate (states[nmin:nmax:ninc]) ]
 
+    # Take measurements at time t
+    # ---------------------------
     def measure (self, state, t):
         """
         Carry out measurements on state of the system
@@ -51,57 +56,52 @@ class Measurements():
 
             elif key == 'nn':
                 self.measures[key].append(self.nncalc(state))
-
         return
-    
+   
+    # save measurement results
+    # ------------------------
     def write_out(self):
         data = np.asarray(self.measures).tolist()
-        with open(self.meas_file,'w') as outfile:
+        with open(self.meas_file, 'w') as outfile:
             json.dump(data, outfile)
         return
-
+    # load measurement results
+    # ------------------------
     def read_in(self, meas_file):
         with open(meas_file, 'r') as infile:
            data =  json.load(infile)
         return data
     
-    # reduced density matrix (rdm) for sites in klist
-    # [1,2] for klist would give rho1_2
+    # reduced density matrix (rdm) of sites in klist
+    # ex) [1,2] for klist would give rho1_2
     def rdm(self, state, klist):
-        """
-        Reduced density matrix
-        state:
-            A full lattice state
-        klist:
-            a list of sites to keep after tracing out the rest
-        """
-        L = int(log(len(state),2))
+        L = int(log(len(state), 2))
         n = len(klist)
-        rest = np.setdiff1d(np.arange(L),klist)
+        rest = np.setdiff1d(np.arange(L), klist)
         ordering = []
         ordering = klist+list(rest)
         block = state.reshape(([2]*L))
         block = block.transpose(ordering)
         block = block.reshape(2**n,2**(L-n))
-        RDM = np.zeros((2**n,2**n),dtype=complex)
+        RDM = np.zeros((2**n,2**n), dtype=complex)
+        
         tot = complex(0,0)
         for i in range(2**n-1):
-            Rii = sum(np.multiply(block[i,:],np.conj(block[i,:])))
+            Rii = sum(np.multiply(block[i,:], np.conj(block[i,:])))
             tot = tot+Rii
             RDM[i][i] = Rii
             for j in range(i,2**n):
                 if i != j:
-                    Rij = np.inner(block[i,:],np.conj(block[j,:]))
+                    Rij = np.inner(block[i,:], np.conj(block[j,:]))
                     RDM[i][j] = Rij
                     RDM[j][i] = Rij
         RDM[2**n-1,2**n-1] = complex(1,0)-tot
-
         return RDM
 
 
     def ncalc(self, state):
         """
-        The set of local number operator measures
+        The set of local number operator subasks
         Returns a dictionarry of results with keys
         'nexp' for the expectation value of the number operator at each site
         'DIS' for nexp discritized at .5
@@ -121,13 +121,6 @@ class Measurements():
 
 
     def Ni (self, k, L):
-        """
-        Represent a local number op in the full Hilbert space
-        k:
-            Site to construct the number operator for
-        L:
-            Length of the lattice
-        """
         eyelist = np.array(['I']*L)
         eyelist[k] = 'n'
         matlist_N = [OPS[key] for key in eyelist]

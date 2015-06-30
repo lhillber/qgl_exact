@@ -16,16 +16,17 @@ from qgl_util import *
 import measures as qms
 
 
-#==============================================================================
+# ========================================
 # Model class:
-# calculates Hamiltonian and propagator for some L (number of sites) and dt
-# (time step)
-#==============================================================================
-class Model:
+# computes/save Hamiltonian and Propagator
+# time evolve an initial state
+# note: Assumes dead BC's
+# ========================================
 
+class Model:
     # Build a model
     # -------------
-    def __init__(self, L, dt, IC,
+    def __init__ (self, L, dt, IC,
                     model_dir = environ['HOME']+'/Documents/qgl_ediag'):
         self.L  = L
         self.dt = dt
@@ -38,18 +39,15 @@ class Model:
         self.prop_name = 'L{}_dt{}'.format(self.L, self.dt)+'_qgl_prop'
         self.ham_path  = model_dir + 'hamiltonians/'+self.ham_name
         self.prop_path = model_dir + 'propagators/'+self.prop_name
-
         return
-
-    def N3(self,k):
-        """
-        k:
-            site number
-        returns the N3 operator of the QGL model at site k
-        """
+    
+    # totalistic selector/swap for 3 live sites 
+    # -----------------------------------------
+    def N3 (self,k):
         n3=0
         for  tup in OPS['permutations_3']:
             local_matlist3 = [tup[0],tup[1],'mix',tup[2],tup[3]]
+            
             if k==0:
                 del local_matlist3[0]
                 del local_matlist3[0]
@@ -61,22 +59,20 @@ class Model:
                 del local_matlist3[0]
             if k==self.L-2:
                 del local_matlist3[3]
+            
             matlist3 = ['I']*(k-2)+local_matlist3
             matlist3 = matlist3 +['I']*(self.L-len(matlist3))
             matlist3 = [OPS[key] for key in matlist3]
             n3 = n3 + spmatkron(matlist3)
         return n3
 
-
+    # totalistic selector/swap for 2 live sites 
+    # -----------------------------------------
     def N2(self,k):
-        """
-        k:
-            site number
-        returns the N2 operator of the QGL model at site k
-        """
         n2 = 0
         for tup in OPS['permutations_2']:
             local_matlist2 = [tup[0],tup[1],'mix',tup[2],tup[3]]
+            
             if k==0:
                 del local_matlist2[0]
                 del local_matlist2[0]
@@ -88,12 +84,15 @@ class Model:
                 del local_matlist2[0]
             if k==self.L-2:
                 del local_matlist2[3]
+            
             matlist2 = ['I']*(k-2)+local_matlist2
             matlist2 = matlist2+['I']*(self.L-len(matlist2))
             matlist2 = [OPS[key] for key in matlist2]
             n2 = n2 + spmatkron(matlist2)
         return n2
-
+    
+    # Create the Hamiltonian and propagator
+    # ------------------------------------- 
     def gen_model (self):
         # Hamiltonian
         if isfile(self.ham_path):
@@ -115,7 +114,8 @@ class Model:
             U0 = spsla.expm(-1j*self.dt*H).todense()
         self.prop = np.asarray(U0)
 
-
+    # Save the Hamiltonian (sparse) and propagator (dense)
+    # ----------------------------------------------------
     def write_out (self):
         sio.mmwrite(self.ham_path, self.ham)
         self.prop.tofile(self.prop_path)
@@ -132,10 +132,10 @@ class Model:
         self.curr_state = self.state_list[-1]
 
 
-#==============================================================================
+#==========================================================================
 # Simulation class
-# run time evolution on an initial state and save the result out
-#==============================================================================
+# Model instance and Measurements instance assined to a Simulation instance
+#==========================================================================
 
 class Simulation():
     def __init__ (self, tasks, L, t_span, dt, IC, output_dir,
@@ -148,26 +148,21 @@ class Simulation():
         self.dt = dt
         self.nmin = round(t_span[0]/self.dt)
         self.nmax = round(t_span[1]/self.dt)
-        self.nsteps = self.nmax - self.nmin
-
-        self.IC = make_state(self.L, IC)
-
-        self.model = Model (L, dt, self.IC, model_dir = model_dir)
-
+        
+        self.IC_vec = make_state (self.L, IC)
         IC_name = '-'.join(['{}{:0.3f}'.format(name,val) \
                 for (name, val) in IC])
-
         self.sim_name = 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
                 L, dt, t_span[0], t_span[1], IC_name)
-
-        #self.states_path = output_dir + '/states/' + self.sim_name + '_states'
-        
         meas_file = model_dir+output_dir+'/'+self.sim_name+'.meas'
-        
-        self.meas = qms.Measurements (tasks = tasks, meas_file = meas_file)
  
+        self.model = Model (L, dt, self.IC_vec, model_dir = model_dir)
+        self.meas = qms.Measurements (tasks = tasks, meas_file = meas_file)
+
+        self.run_sim()
         return
 
+    # model -> states -> measurements then save
     def run_sim (self):
         self.model.gen_model()
         self.model.time_evolve (self.nmax)

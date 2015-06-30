@@ -302,16 +302,16 @@ def main(output_dir, L_list, dt_list, t_span_list, IC_list, th_list, model_dir =
     for L in L_list:
         for dt in dt_list:
             for t_span in t_span_list:
-                theta_plots(output_dir,L,dt,t_span,IC_list,th_list)
-                multipage(plots_dir+'/equibvals.pdf',clf=False)
-                '''
-                for IC in IC_list:
+#                theta_plots(output_dir,L,dt,t_span,IC_list,th_list)
+#                multipage(plots_dir+'/equibvals.pdf',clf=False)
+#                '''
+                for IC in IC_list[::5]:
                     mydata = import_data(output_dir, L, dt, t_span, IC) 
                     plt.close()
                     time_plots(mydata)
                     multipage(plots_dir+'/'+sim_name(L, dt, t_span, IC)+'.pdf')
                     plt.close()
-                '''
+#                '''
 
 
 

@@ -18,6 +18,7 @@ OPS = ({
     'mix':np.array([[0.,1.],[1.,0.]]),
     'dead':np.array([[1.,0.]]).transpose(),
     'alive':np.array([[0.,1.]]).transpose(),
+    'es'   : np.array([[1./sqrt(2), 1./sqrt(2)]]).transpose(),
     'permutations_3':list(set([perm for perm in
         permutations(['nbar','n','n','n'],4)])),
     'permutations_2':list(set([perm for perm in
@@ -44,117 +45,99 @@ def spmatkron (matlist):
 def dagger (mat):
     return mat.conj().transpose()
 
-# List average (should replace with np.mean)
-# ------------------------------------------
-def average (mylist):
-    return sum(mylist)/len(mylist)
-
 
 
 # Initial State Creation
 # ======================
-
+   
 # Create Fock state
 # -----------------
-def fock (L, dec):
-    state = [el.replace('0', 'dead').replace('1', 'alive')
+def fock (L, config, zero = 'dead', one = 'alive'):
+    dec = int(config)
+    state = [el.replace('0', zero).replace('1', one)
             for el in list('{0:0b}'.format(dec).rjust(L, '0'))]
     return matkron([OPS[key] for key in state])
 
-# Create a symetric state from an asymetric one
-# ---------------------------------------------
-def symetrize_fock(L, dec):
-    b = '{0:0'+str(L)+'b}'
-    b = b.format(dec)
-    dec_reversed = int(''.join(list(reversed(b))),2)
-    dec_sym = dec + dec_reversed
-    return fock(L, dec_sym)
+# Create state with config - > binary: 0 - >dead, 1 -> 1/sqrt(2) (|0> +|1>)
+# ------------------------------------------------------------------------
+def local_superposition (L, config):
+    return fock(L, config, one = 'es')
+
+# Create state with one or two live sites
+# ---------------------------------------
+def one_alive (L, config):
+    dec = 2**int(config)
+    return fock(L, dec)
+
+def two_alive(L, config):
+    i, j = map(int, config.split('_'))
+    return fock(L, 2**i + 2**j)
+
+def two_es(L, config):
+    i, j = map(int, config.split('_'))
+    return local_superposition(L, 2**i + 2**j)
+
+# Create state with all sites living
+# ----------------------------------
+def all_alive (L, config):
+    dec = sum ([2**n for n in range(0,L)])
+    return fock(L, dec)
 
 # Create GHZ state
 # ----------------
-def GHZ (L):
+def GHZ (L, congif):
     s1=['alive']*(L)
     s2=['dead']*(L)
     return (1.0/sqrt(2.0)) \
             * ((matkron([OPS[key] for key in s1]) \
                 + matkron([OPS[key] for key in s2])))
 
-# Create state with single live site
-# ----------------------------------
-def one_alive (L, k):
-    base = ['dead']*L
-    base[k] = 'alive'
-    return matkron([OPS[key] for key in base])
-
 # Create W state
 # --------------
-def W (L):
+def W (L, config):
     return (1.0/sqrt(L)) \
             * sum ([one_alive(L, k) for k in range(L)])
 
-# Create state with all sites living
-# ----------------------------------
-def all_alive (L):
-    dec = sum ([2**n for n in range(0,L)])
-    return fock(L, dec)
+# Create as state with sites i and j maximally entangled
+# reduces to 1/sqrt(2) (|00> + |11>) in L = 2 limit
+# ------------------------------------------------------
+def entangled_pair (L, config):
+    i, j = map(int, config.split('_'))
+    return 1./sqrt(2) * (fock(L, 0) + fock(L, 2**i + 2**j))
 
-# Dict of available states
-# ------------------------
-def state_map (key, L, dec):
-    smap = { 'd': fock(L, dec),
-             's': symetrize_fock(L, dec),
-             'G': GHZ(L),
-             'W': W(L),
-             'a': all_alive(L) }
-    return smap[key]
+def center(L, config):
+    len_cent = int(config[0])
+    len_back = L - len_cent
+    len_L = int(len_back/2)
+    len_R = len_back - len_L
+    cent_IC = [(config[1:], 1)]
+    left = fock(len_L, 0)
+    cent = make_state(len_cent, cent_IC)
+    right = fock(len_R, 0)
+    return matkron([left, cent, right])
 
 # Make the specified state
 # ------------------------
-def make_state (L, state):
-    state_chars = [s[0] for s in state]
-    state_chars_list = map(lambda x: list(x), state_chars)
-    state_coeffs = [s[1] for s in state] 
-    ziped = zip(state_chars_list, state_coeffs)
-    state = np.asarray([[0.]*(2**L)]).transpose()
-    for (chars, coeff) in ziped:
-        if len(chars)>1:
-            dec = int(''.join(chars[1:]))
-        else: 
-            dec = 0
 
-        state = state + coeff * state_map(chars[0], L, dec)
+smap = { 'd' : fock,
+         'l' : local_superposition,
+         't' : two_es,
+         'a' : all_alive,
+         'c' : center,
+         'G' : GHZ,
+         'W' : W,
+         'E' : entangled_pair } 
+
+def make_state (L, IC):
+    
+   
+    state = np.asarray([[0.]*(2**L)]).transpose()
+    for s in IC: 
+            name = s[0][0]
+            config = s[0][1:]
+            coeff = s[1]
+            state = state + coeff * smap[name](L, config)
     return state
 
-
-
-# Parallelize
-# ===========
-# http://stackoverflow.com/questions/3288595/multiprocessing-using-pool-map-on-a-function-defined-in-a-class
-
-
-
-
-
-def run_sims(sims_with_L):
-    for sim in sims_with_L:
-        sim.run_sim()
-        del sim
-
-# Wrapper for multiprocessing
-# ---------------------------
-def spawn_proc (f):
-    def fun(pipe,x):
-        pipe.send(f(x))
-        pipe.close()
-    return fun
-
-# Run multiple `f` in parallel with the list of X
-# -----------------------------------------------
-def multi_runs (f, X):
-    pipe=[Pipe() for x in X]
-    proc=[Process(target=spawn_proc(f),args=(c,x)) for (p,c),x in zip(pipe,X)]
-    [p.start() for p in proc]
-    [p.join() for p in proc]
-    return [p.recv() for (p,c) in pipe]
 
 
