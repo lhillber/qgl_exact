@@ -22,8 +22,7 @@ def sim_name(L, dt, t_span, IC):
     return 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
                 L, dt, t_span[0], t_span[1], IC_name(IC))
   
-def meas_file(output_dir, L, dt, t_span, IC, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
-    return model_dir+output_dir+'/'+sim_name(L, dt, t_span, IC)+'.meas'
+def meas_file(output_dir, L, dt, t_span, IC, model_dir = environ['HOME']+'/Documents/qgl_ediag/'): return model_dir+output_dir+'/'+sim_name(L, dt, t_span, IC)+'.meas'
 
 def import_ham(L, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
     hame_name = 'L'+str(self.L)+'_qgl_ham.mtx'

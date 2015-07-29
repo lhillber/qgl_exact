@@ -3,6 +3,7 @@ from functools import reduce
 from math import log, sqrt
 from itertools import permutations
 import numpy as np
+import numpy.linalg as nla
 import json
 import scipy.linalg as sla
 import epl
@@ -41,7 +42,6 @@ class Measurements():
         """
         print(t)
         for key in self.tasks:
-
             if key == 'n':
                 self.measures[key].append(self.ncalc(state))
 
@@ -51,9 +51,9 @@ class Measurements():
             elif key == 't':
                 self.measures[key].append(t)
 
-            elif key == 'BD':
-                self.measures[key].append(self.bdcalc(state))
-
+            elif key == 'EC':
+                self.measures[key].append(self.entropy_of_cut(state))
+            
             elif key == 'nn':
                 self.measures[key].append(self.nncalc(state))
         return
@@ -108,6 +108,7 @@ class Measurements():
         'DIV' for diversity (defined in epl)
         'DEN' for average number density
 
+        
         state:
             A full lattice state
         """
@@ -146,9 +147,9 @@ class Measurements():
         prho:
             a density matrix
         """
-        evals = sla.eigvalsh(prho)
+        #evals = sla.eigvalsh(prho)
+        evals = nla.eigvalsh(prho)
         s = -sum(el*log(el,2) if el > 1e-14 else 0.  for el in evals)
-
         return s
 
 
@@ -169,10 +170,12 @@ class Measurements():
             for j in range(i,L):
                 if i != j:
                     MI = .5*(self.entropy(self.rdm(state,[i]))+self.entropy(self.rdm(state,[j]))-self.entropy(self.rdm(state,[i,j])))
-                if MI > 1e-14:
-                    MInet[i][j] = MI
-                    MInet[j][i] = MI
-
+                    if MI > 1e-14:
+                        MInet[i][j] = MI
+                        MInet[j][i] = MI
+                    if MI<= 1e-14:
+                        MInet[i][j] = 1e-14
+                        MInet[j][i] = 1e-14
         return MInet
 
 
@@ -192,14 +195,14 @@ class Measurements():
         MICC = nm.clustering(MInet)
         MIdensity = nm.density(MInet)
         MIdisparity = nm.disparity(MInet)
-        #MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
+        MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
 
-        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':1}
+        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':MIharmoniclen}
 
 
     def nncorrelation (self, state,i,j):
         L = int(log(len(state),2))
-        return self.expval(state,self.Ni(i,L).dot(self.Ni(j,L)))-self.expval(state,self.Ni(i,L))*self.expval(state,self.Ni(j,L))
+        return self.expval(state,self.Ni(i,L).dot(self.Ni(j,L)))
 
 
     def nnnetwork (self, state):
@@ -213,12 +216,11 @@ class Measurements():
 
             for j in range(i,L):
                 if i != j:
-                    nnij = abs(self.nncorrelation(state,i,j))
+                    nnij = self.nncorrelation(state,i,j)
                     if nnij>1e-14:
                         nnnet[i][j] = nnij
                         nnnet[j][i] = nnij
-
-        return np.fabs(nnnet)
+        return nnnet
 
 
     def nncalc (self, state):
@@ -231,11 +233,14 @@ class Measurements():
         return {'net':nnnet.tolist(),'CC':nnCC,'ND':nndensity,'Y':nndisparity,'HL':1}
 
 
-    def bdcalc (self, state):
+    def entropy_of_cut (self, state):
         L = int(log(len(state),2))
-        klist = [[i for i in range(mx)] if mx <= round(L/2) else np.setdiff1d(np.arange(L),[i for i in range(mx)]).tolist() for mx in range(1,L)]
+        klist = [ [i for i in range(mx)] if mx <= round(L/2) 
+                else np.setdiff1d(np.arange(L), [i for i in range(mx)]).tolist() 
+                
+                for mx in range(1,L)]
 
-        return [np.count_nonzero(filter(lambda el: el > 1e-14, sla.eigvalsh(self.rdm(state,ks)))) for ks in klist ]
+        return [self.entropy(self.rdm(state,ks)) for ks in klist ]
 
 
 

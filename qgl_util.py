@@ -114,7 +114,12 @@ def center(L, config):
     left = fock(len_L, 0)
     cent = make_state(len_cent, cent_IC)
     right = fock(len_R, 0)
-    return matkron([left, cent, right])
+    if len_back == 0:
+        return cent
+    elif len_back == 1:
+        return matkron([cent, right])
+    else:
+        return matkron([left, cent, right])
 
 # Make the specified state
 # ------------------------
