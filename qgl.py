@@ -52,13 +52,13 @@ class Model:
                 del local_matlist3[0]
                 del local_matlist3[0]
             if k==self.L-1:
-                del local_matlist3[3]
-                del local_matlist3[3]
+                del local_matlist3[-1]
+                del local_matlist3[-1]
 
             if k==1:
                 del local_matlist3[0]
             if k==self.L-2:
-                del local_matlist3[3]
+                del local_matlist3[-1]
             
             matlist3 = ['I']*(k-2)+local_matlist3
             matlist3 = matlist3 +['I']*(self.L-len(matlist3))
@@ -73,24 +73,36 @@ class Model:
         for tup in OPS['permutations_2']:
             local_matlist2 = [tup[0],tup[1],'mix',tup[2],tup[3]]
             
-            if k==0:
-                del local_matlist2[0]
-                del local_matlist2[0]
-            if k==self.L-1:
-                del local_matlist2[3]
-                del local_matlist2[3]
-
-            if k==1:
-                del local_matlist2[0]
-            if k==self.L-2:
-                del local_matlist2[3]
-            
             matlist2 = ['I']*(k-2)+local_matlist2
             matlist2 = matlist2+['I']*(self.L-len(matlist2))
             matlist2 = [OPS[key] for key in matlist2]
             n2 = n2 + spmatkron(matlist2)
         return n2
     
+    
+    def boundary_terms_gen(self, L):
+        L_terms = [
+                  ['mix', 'n', 'n', 'I'   ] + ['I']*(L-4),   \
+                  ['n', 'mix', 'n', 'n'   ] + ['I']*(L-4),   \
+                  ['nbar', 'mix', 'n', 'n'] + ['I']*(L-4),\
+                  ['n', 'mix', 'nbar', 'n'] + ['I']*(L-4),\
+                  ['n', 'mix', 'n', 'nbar'] + ['I']*(L-4) \
+                                          ] 
+        #R_terms = list(map(lambda L_term: L_term[::-1], L_terms))
+        
+        R_terms = [
+                  ['I']*(L-4) + ['I', 'n', 'n', 'mix'   ] ,\
+                  ['I']*(L-4) + ['I', 'n', 'nbar', 'mix'] ,\
+                  ['I']*(L-4) + ['I', 'nbar', 'n', 'mix'] ,\
+                  ['I']*(L-4) + ['n', 'n', 'nbar', 'n'  ] ,\
+                  ['I']*(L-4) + ['nbar', 'n', 'mix', 'n'] ,\
+                  ['I']*(L-4) + ['n', 'mix', 'nbar', 'n'] ,\
+                  ['I']*(L-4) + ['n', 'n', 'mix', 'nbar']  
+                                                        ]
+
+        boundary_terms = L_terms+R_terms
+        return boundary_terms
+
     # Create the Hamiltonian and propagator
     # ------------------------------------- 
     def gen_model (self):
@@ -100,7 +112,10 @@ class Model:
             H = sio.mmread(self.ham_path).tocsc()
         else:
             print('Building Hamiltonian...')
-            H = sum ([(self.N2(k) + self.N3(k)) for k in range(self.L)])
+            H = sum ([(self.N2(k) + self.N3(k)) for k in range(2, self.L-2)])
+            for matlistb in self.boundary_terms_gen(self.L):
+                matlistb = [OPS[key] for key in matlistb]
+                H = H + spmatkron(matlistb)
         self.ham = H
 
         # Propogator

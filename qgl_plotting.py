@@ -151,21 +151,34 @@ def plot_board(mydata, task, subtask,
     ytick_lbls = range(L-1,-1,-1)
     ytick_locs = range(L)
     
-    board = make_board(mydata,task,subtask)
     fig = plt.figure(fignum)
     fig.add_subplot(ax)
 
-    if subtask == 'nexp':
+    if task is 'EC':
+        L = L-1
+        ytick_lbls = range(L-1,-1,-1)
+        ytick_locs = range(L)
         cmap = plt.cm.jet
         norm = None 
+        board = np.array(mydata[task]).transpose()
+        vmin = np.min(board)
+        vmax = np.max(board)
+    elif subtask is 'nexp' or 'EV' or 'EC':
+        cmap = plt.cm.jet
+        norm = None 
+        board = make_board(mydata,task,subtask)
+        vmin = 0.
+        vmax = 1.
     elif subtask == 'DIS':
         cmap = mpl.colors.ListedColormap([plt.cm.jet(0.), plt.cm.jet(1.)])
         bounds = [0,0.5,1]
         norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-    
+        board = make_board(mydata,task,subtask)
+        vmin = 0.,
+        vmax = 1.,
     plt.imshow(board,
-            vmin = 0.,
-            vmax = 1.,
+            vmin = vmin,
+            vmax = vmax,
             origin = 'lower',
             cmap = cmap,
             norm = norm,
@@ -234,27 +247,18 @@ def time_plots(mydata):
     plot_fft(mydata,'n','DEN',fignum=2,ax=212)
 
     plot_time_series(mydata,'n','DIV',fignum=3,ax=211,yax_label=r'$\Delta$',title=r'')
+    
+#    plot_specgram(mydata,'nn','CC',fignum=8,ax=111,title=r'$g_{ij}$ CC Spectrogram')
+#    plot_specgram(mydata,'nn','ND',fignum=9,ax=111,title=r'$g_{ij}$ ND Spectrogram')
+#    plot_specgram(mydata,'nn','Y',fignum=10,ax=111,title=r'$g_{ij}$ Y Spectrogram')
+#    plot_specgram(mydata,'nn','HL',fignum=11,ax=111,title=r'$g_{ij}$ IHL Spectrogram')
 
-    plot_time_series(mydata,'nn','CC',fignum=4,ax=211,yax_label='CC',title=r'$g_{ij}$')
-    plot_fft(mydata,'nn','CC',fignum=4,ax=212)
-    plot_time_series(mydata,'nn','ND', fignum=5, ax=211,yax_label='ND',title=r'$g_{ij}$')
-    plot_fft(mydata,'nn','ND', fignum=5, ax=212)
-    plot_time_series(mydata,'nn','Y', fignum=6, ax=211,yax_label='Y',title=r'$g_{ij}$')
-    plot_fft(mydata,'nn','Y', fignum=6, ax=212)
-    plot_time_series(mydata,'nn','HL',fignum=7, ax=211,yax_label='IHL',title=r'$g_{ij}$')
-    plot_fft(mydata,'nn','HL', fignum=7, ax=212)
-
-    plot_specgram(mydata,'nn','CC',fignum=8,ax=111,title=r'$g_{ij}$ CC Spectrogram')
-    plot_specgram(mydata,'nn','ND',fignum=9,ax=111,title=r'$g_{ij}$ ND Spectrogram')
-    plot_specgram(mydata,'nn','Y',fignum=10,ax=111,title=r'$g_{ij}$ Y Spectrogram')
-    plot_specgram(mydata,'nn','HL',fignum=11,ax=111,title=r'$g_{ij}$ IHL Spectrogram')
-
-    plot_phase_diagram(mydata,'nn','CC','ND',fignum=12,ax=231,xax_label='CC',yax_label='ND',title = r'$g_{ij}$')
-    plot_phase_diagram(mydata,'nn','CC','Y',fignum=12,ax=232,xax_label='CC',yax_label='Y',title = r'$g_{ij}$')
-    plot_phase_diagram(mydata,'nn','CC','HL',fignum=12,ax=233,xax_label='CC',yax_label='IHL',title = r'$g_{ij}$')
-    plot_phase_diagram(mydata,'nn','ND','Y',fignum=12,ax=234,xax_label='ND',yax_label='Y',title = r'$g_{ij}$')
-    plot_phase_diagram(mydata,'nn','ND','HL',fignum=12,ax=235,xax_label='ND',yax_label='IHL',title = r'$g_{ij}$')
-    plot_phase_diagram(mydata,'nn','Y','HL',fignum=12,ax=236,xax_label='Y',yax_label='IHL',title = r'$g_{ij}$')
+#    plot_phase_diagram(mydata,'nn','CC','ND',fignum=12,ax=231,xax_label='CC',yax_label='ND',title = r'$g_{ij}$')
+#   plot_phase_diagram(mydata,'nn','CC','Y',fignum=12,ax=232,xax_label='CC',yax_label='Y',title = r'$g_{ij}$')
+#   plot_phase_diagram(mydata,'nn','CC','HL',fignum=12,ax=233,xax_label='CC',yax_label='IHL',title = r'$g_{ij}$')
+#    plot_phase_diagram(mydata,'nn','ND','Y',fignum=12,ax=234,xax_label='ND',yax_label='Y',title = r'$g_{ij}$')
+#    plot_phase_diagram(mydata,'nn','ND','HL',fignum=12,ax=235,xax_label='ND',yax_label='IHL',title = r'$g_{ij}$')
+#    plot_phase_diagram(mydata,'nn','Y','HL',fignum=12,ax=236,xax_label='Y',yax_label='IHL',title = r'$g_{ij}$')
 
     plot_time_series(mydata,'MI','CC',fignum=13,ax=211,yax_label='CC', title=r'$\mathcal{I}_{ij}$')
     plot_fft(mydata,'MI','CC',fignum=13, ax=212)
@@ -264,11 +268,25 @@ def time_plots(mydata):
     plot_fft(mydata,'MI','Y', fignum=15, ax=212)
     plot_time_series(mydata,'MI','HL',fignum=16, ax=211,yax_label='IHL',title=r'$\mathcal{I}_{ij}$')
     plot_fft(mydata,'MI','HL', fignum=16, ax=212)
+    
+    plot_board(mydata,'MI','EV',fignum=17, ax=111, \
+            yax_label='Eigenvector centrality', title=r'$\mathcal{I}_{ij}$')
+    plot_board(mydata,'EC','EC',fignum=18, ax=111,yax_label='Entropy of Cut',title=r'$\mathcal{I}_{ij}$')
+    
+    fig = plt.figure(19)
+    fig.add_subplot(111)
+    times = [mydata['t'][i] for i in range(mydata['Nsteps'])]
+    plt.plot(times, [mydata['EC'][i][int(mydata['L']/2 -1)] \
+            for i in range(mydata['Nsteps'])])
+    plt.title('Entropy of center cut')
+    plt.ylabel('Entropy')
+    plt.xlabel('time')
+    plt.tight_layout()
 
-    plot_specgram(mydata,'nn','CC',fignum=17,ax=111,title=r'$\mathcal{I}_{ij}$ CC Spectrogram')
-    plot_specgram(mydata,'nn','ND',fignum=18,ax=111,title=r'$\mathcal{I}_{ij}$ ND Spectrogram')
-    plot_specgram(mydata,'nn','Y',fignum=19,ax=111,title=r'$\mathcal{I}_{ij}$ Y Spectrogram')
-    plot_specgram(mydata,'nn','HL',fignum=20,ax=111,title=r'$\mathcal{I}_{ij}$ IHL Spectrogram')
+#    plot_specgram(mydata,'nn','CC',fignum=17,ax=111,title=r'$\mathcal{I}_{ij}$ CC Spectrogram')
+#    plot_specgram(mydata,'nn','ND',fignum=18,ax=111,title=r'$\mathcal{I}_{ij}$ ND Spectrogram')
+#    plot_specgram(mydata,'nn','Y',fignum=19,ax=111,title=r'$\mathcal{I}_{ij}$ Y Spectrogram')
+#    plot_specgram(mydata,'nn','HL',fignum=20,ax=111,title=r'$\mathcal{I}_{ij}$ IHL Spectrogram')
 
     plot_phase_diagram(mydata,'MI','CC','ND',fignum=21,ax=231,xax_label='CC',yax_label='ND',title = r'$\mathcal{I}_{ij}$')
     plot_phase_diagram(mydata,'MI','CC','Y',fignum=21,ax=232,xax_label='CC',yax_label='Y',title = r'$\mathcal{I}_{ij}$')

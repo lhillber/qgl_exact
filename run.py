@@ -14,16 +14,16 @@ from mpi4py import MPI
 # Simulation Parameters
 # ---------------------
 
-post_processing = True
+post_processing = False
 
 th_list = np.linspace(0.0, pi/4, 25)
 
-L_list      = [6,8,10,12,14]
+L_list      = [6]
 dt_list     = [1.0]
 tasks       = ['t', 'EC', 'n', 'nn', 'MI']
-t_span_list = [(0, 100)]
+t_span_list = [(0, 10)]
 #IC_list     = [[('c3E0_1, cos(th)), ('c2t0_1', sin(th))] for th in th_list]
-IC_list = [[('a', 1.0)]]
+IC_list = [[('d57', 1.0)]]
 output_dir  = "david_opop"
 
 

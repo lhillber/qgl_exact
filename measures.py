@@ -191,13 +191,18 @@ class Measurements():
             Full lattice state
         """
 
-        MInet = self.MInetwork(state)
-        MICC = nm.clustering(MInet)
-        MIdensity = nm.density(MInet)
-        MIdisparity = nm.disparity(MInet)
-        MIharmoniclen = nm.harmoniclength(nm.distance(MInet))
-
-        return {'net':MInet.tolist(),'CC':MICC,'ND':MIdensity,'Y':MIdisparity,'HL':MIharmoniclen}
+        MInet            = self.MInetwork(state)
+        MICC             = nm.clustering(MInet)
+        MIdensity        = nm.density(MInet)
+        MIdisparity      = nm.disparity(MInet)
+        MIharmoniclen    = nm.harmoniclength(nm.distance(MInet))
+        MIeveccentrality = nm.eigenvectorcentralitynx0(MInet)
+        return {'net' : MInet.tolist(),
+                'CC'  : MICC,
+                'ND'  : MIdensity,
+                'Y'   : MIdisparity,
+                'HL'  : MIharmoniclen,
+                'EV'  : list(MIeveccentrality.values())}
 
 
     def nncorrelation (self, state,i,j):
@@ -237,10 +242,8 @@ class Measurements():
         L = int(log(len(state),2))
         klist = [ [i for i in range(mx)] if mx <= round(L/2) 
                 else np.setdiff1d(np.arange(L), [i for i in range(mx)]).tolist() 
-                
                 for mx in range(1,L)]
-
-        return [self.entropy(self.rdm(state,ks)) for ks in klist ]
+        return [self.entropy(self.rdm(state, ks)) for ks in klist ]
 
 
 
