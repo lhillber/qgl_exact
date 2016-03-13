@@ -20,7 +20,7 @@ import qgl_plotting as pt
 
 # default plot font
 # -----------------
-font = {'size':9, 'weight' : 'normal'}
+font = {'size':12, 'weight' : 'normal'}
 mpl.rcParams['mathtext.fontset'] = 'stix'
 mpl.rcParams['font.family'] = 'STIXGeneral'
 mpl.rc('font',**font)
@@ -171,7 +171,6 @@ def plot_grid(U, ts, ax, title, nticks=3):
     board = ax.imshow(U, origin='lower', interpolation='none',
             aspect='auto')
 
-    print(ts)
     ytick_lbls = np.arange(t0, T,dt)[::int(M/nticks)]
     ytick_locs = np.arange(M)[::int(M/nticks)]
     xtick_lbls = range(L)
@@ -184,7 +183,7 @@ def plot_grid(U, ts, ax, title, nticks=3):
     ax.set_ylabel('Time')
     #ax.set_zlabel(r'$$')
     ax.set_title(title)
-
+    return board
 # Plot numeric (U), exact (u) and error (U-u) in three rows of column col
 # -----------------------------------------------------------------------
 def plot_grids(U, u, dt, col, ts, fignum=1):
@@ -234,19 +233,11 @@ def plot_e_inf(dt_list, e_inf_list, fig, line_num=0):
     ax.grid('on')
     return m, b, chi2
 
+    
 
-if __name__ == '__main__':
-    L = 10
-    t0 = 0
-    T = 2
-    t_span = [t0,T] 
-    dt_list = [0.1/2**k for k in [0,1,2,3,4]]
-
-    #IC = [('f0-1-8-9', 1.0)]
+def convergence():
     IC = [('c2_f0-1', 1.0)]
-
     output_dir  = 'exact_for_trotter'
-
     fig = plt.figure(1, figsize=(6.5, 9))
     fig2 = plt.figure(2, figsize=(3.5,3.5))
     for n, mode in enumerate(['asym','sym']):
@@ -276,3 +267,30 @@ if __name__ == '__main__':
     fio.multipage('../exact_for_trotter/plots/conv_sample.pdf')
 
 
+if __name__ == '__main__':
+
+    # simulation parameters
+    L = 18
+    t0 = 0
+    T = 2
+    t_span = [t0,T] 
+    dt = 0.01
+    M = int(((T - t0)/dt))
+    IC = 'c2_f0-1'
+
+    mode = 'sym'
+    #mode = 'asym'
+
+    # run and measure
+    init_state = ss.make_state(L, IC)
+    nexp = measure(M, L, init_state, dt, T=T, mode=mode)
+
+    #plot result
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ts = np.arange(t0, T, dt)
+    title = r'$\langle n_j \rangle$, $\Delta t = {:f}$'.format(dt)
+    grid = plot_grid(nexp, ts, ax, title, nticks=3)
+    plt.colorbar(grid, label= r'$\langle n_j \rangle$')
+    plt.show()
+    #fio.multipage(trotter_example.pdf')
