@@ -22,7 +22,6 @@ class Measurements():
         self.measures = {key:[] for key in tasks }
         self.meas_file = meas_file
         return
-    
     # Easy retreval of data
     # ----------------------
     def __getitem__(self,key):
@@ -53,7 +52,7 @@ class Measurements():
 
             elif key == 'EC':
                 self.measures[key].append(self.entropy_of_cut(state))
-            
+
             elif key == 'nn':
                 self.measures[key].append(self.nncalc(state))
         return

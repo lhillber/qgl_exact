@@ -11,7 +11,7 @@ import scipy.sparse as sps
 import scipy.io as sio
 import scipy.linalg as sla
 import scipy.sparse.linalg as spsla
-
+import simulation.states as ss
 from qgl_util import *
 import measures as qms
 
@@ -27,7 +27,7 @@ class Model:
     # Build a model
     # -------------
     def __init__ (self, L, dt, IC,
-                    model_dir = environ['HOME']+'/Documents/qgl_ediag'):
+                    model_dir = environ['HOME']+'/documents/research/cellular_automata/qgl/qgl_ediag/'):
         self.L  = L
         self.dt = dt
 
@@ -40,14 +40,14 @@ class Model:
         self.ham_path  = model_dir + 'hamiltonians/'+self.ham_name
         self.prop_path = model_dir + 'propagators/'+self.prop_name
         return
-    
+
     # totalistic selector/swap for 3 live sites 
     # -----------------------------------------
     def N3 (self,k):
         n3=0
         for  tup in OPS['permutations_3']:
             local_matlist3 = [tup[0],tup[1],'mix',tup[2],tup[3]]
-            
+
             if k==0:
                 del local_matlist3[0]
                 del local_matlist3[0]
@@ -59,7 +59,7 @@ class Model:
                 del local_matlist3[0]
             if k==self.L-2:
                 del local_matlist3[-1]
-            
+
             matlist3 = ['I']*(k-2)+local_matlist3
             matlist3 = matlist3 +['I']*(self.L-len(matlist3))
             matlist3 = [OPS[key] for key in matlist3]
@@ -72,35 +72,43 @@ class Model:
         n2 = 0
         for tup in OPS['permutations_2']:
             local_matlist2 = [tup[0],tup[1],'mix',tup[2],tup[3]]
-            
+            if k==0:
+                del local_matlist2[0]
+                del local_matlist2[0]
+            if k==self.L-1:
+                del local_matlist2[-1]
+                del local_matlist2[-1]
+
+            if k==1:
+                del local_matlist2[0]
+            if k==self.L-2:
+                del local_matlist2[-1]
+
             matlist2 = ['I']*(k-2)+local_matlist2
             matlist2 = matlist2+['I']*(self.L-len(matlist2))
             matlist2 = [OPS[key] for key in matlist2]
             n2 = n2 + spmatkron(matlist2)
         return n2
-    
-    
+
+
     def boundary_terms_gen(self, L):
         L_terms = [
-                  ['mix', 'n', 'n', 'I'   ] + ['I']*(L-4),   \
-                  ['n', 'mix', 'n', 'n'   ] + ['I']*(L-4),   \
-                  ['nbar', 'mix', 'n', 'n'] + ['I']*(L-4),\
-                  ['n', 'mix', 'nbar', 'n'] + ['I']*(L-4),\
-                  ['n', 'mix', 'n', 'nbar'] + ['I']*(L-4) \
-                                          ] 
-        #R_terms = list(map(lambda L_term: L_term[::-1], L_terms))
-        
-        R_terms = [
-                  ['I']*(L-4) + ['I', 'n', 'n', 'mix'   ] ,\
-                  ['I']*(L-4) + ['I', 'n', 'nbar', 'mix'] ,\
-                  ['I']*(L-4) + ['I', 'nbar', 'n', 'mix'] ,\
-                  ['I']*(L-4) + ['n', 'n', 'nbar', 'n'  ] ,\
-                  ['I']*(L-4) + ['nbar', 'n', 'mix', 'n'] ,\
-                  ['I']*(L-4) + ['n', 'mix', 'nbar', 'n'] ,\
-                  ['I']*(L-4) + ['n', 'n', 'mix', 'nbar']  
-                                                        ]
+                  ['mix',  'n',   'n',    'I'   ] + ['I']*(L-4),
+                  ['nbar', 'mix', 'n',    'n'   ] + ['I']*(L-4),
+                  ['n',    'mix', 'nbar', 'n'   ] + ['I']*(L-4),
+                  ['n',    'mix', 'n',    'nbar'] + ['I']*(L-4),
+                  ['n',    'mix', 'n',    'n'   ] + ['I']*(L-4)
+                  ] 
 
-        boundary_terms = L_terms+R_terms
+        R_terms = [
+                  ['I']*(L-4) + ['n',    'n',    'mix', 'nbar'],
+                  ['I']*(L-4) + ['n',    'nbar', 'mix', 'n'  ],
+                  ['I']*(L-4) + ['nbar', 'n',    'mix', 'n'  ],
+                  ['I']*(L-4) + ['n',    'n',    'mix', 'n'  ],
+                  ['I']*(L-4) + ['I',    'n',    'n',   'mix']
+                  ]
+
+        boundary_terms = L_terms + R_terms
         return boundary_terms
 
     # Create the Hamiltonian and propagator
@@ -154,7 +162,7 @@ class Model:
 
 class Simulation():
     def __init__ (self, tasks, L, t_span, dt, IC, output_dir,
-                    model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
+                    model_dir = environ['HOME']+'/documents/research/cellular_automata/qgl/qgl_ediag/'):
 
         makedirs(model_dir+output_dir, exist_ok=True)
 
@@ -163,9 +171,9 @@ class Simulation():
         self.dt = dt
         self.nmin = round(t_span[0]/self.dt)
         self.nmax = round(t_span[1]/self.dt)
-        
-        self.IC_vec = make_state (self.L, IC)
-        IC_name = '-'.join(['{}{:0.3f}'.format(name,val) \
+
+        self.IC_vec = np.array([ss.make_state(self.L, IC)]).T
+        IC_name = '-'.join(['{}{:0.3f}'.format(name, val) \
                 for (name, val) in IC])
         self.sim_name = 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
                 L, dt, t_span[0], t_span[1], IC_name)

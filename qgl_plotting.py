@@ -22,9 +22,12 @@ def sim_name(L, dt, t_span, IC):
     return 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \
                 L, dt, t_span[0], t_span[1], IC_name(IC))
   
-def meas_file(output_dir, L, dt, t_span, IC, model_dir = environ['HOME']+'/Documents/qgl_ediag/'): return model_dir+output_dir+'/'+sim_name(L, dt, t_span, IC)+'.meas'
+def meas_file(output_dir, L, dt, t_span, IC, model_dir =
+        environ['HOME']+'/documents/research/cellular_automata/qgl/qgl_ediag/'): 
+    return model_dir+output_dir+'/'+sim_name(L, dt, t_span, IC)+'.meas'
 
-def import_ham(L, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
+def import_ham(L, model_dir =
+        environ['HOME']+'/documents/research/cellular_automata/qgl/qgl_ediag/'):
     hame_name = 'L'+str(self.L)+'_qgl_ham.mtx'
     ham_dir = model_dir + 'hamiltonians/'+self.ham_name
     return sio.mmread(ham_dr)
@@ -313,7 +316,8 @@ def theta_plots(output_dir,L,dt,t_span,IC_list,thlist):
    plt.tight_layout() 
 
 
-def main(output_dir, L_list, dt_list, t_span_list, IC_list, th_list, model_dir = environ['HOME']+'/Documents/qgl_ediag/'):
+def main(output_dir, L_list, dt_list, t_span_list, IC_list, th_list, model_dir =
+        environ['HOME']+'/documents/research/cellular_automata/qgl/qgl_ediag/'):
     plots_dir = model_dir+output_dir+'/plots'
     makedirs(plots_dir, exist_ok=True)
     for L in L_list:
