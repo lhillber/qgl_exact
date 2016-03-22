@@ -134,8 +134,6 @@ smap = { 'd' : fock,
          'E' : entangled_pair } 
 
 def make_state (L, IC):
-    
-   
     state = np.asarray([[0.]*(2**L)]).transpose()
     for s in IC: 
             name = s[0][0]

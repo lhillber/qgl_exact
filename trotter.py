@@ -5,9 +5,9 @@ from os.path import isfile
 import numpy as np
 import scipy.linalg as sla
 from itertools import permutations
-import simulation.matrix as mx
-import simulation.states as ss
-import simulation.fio as fio
+import matrix as mx
+import states as ss
+import fio as fio
 import measures as qms
 
 
@@ -171,8 +171,8 @@ def plot_grid(U, ts, ax, title, nticks=3):
     board = ax.imshow(U, origin='lower', interpolation='none',
             aspect='auto')
 
-    ytick_lbls = np.arange(t0, T,dt)[::int(M/nticks)]
-    ytick_locs = np.arange(M)[::int(M/nticks)]
+    ytick_lbls = ts[::int(len(ts)/nticks)]
+    ytick_locs = np.arange(len(ts))[::int(len(ts)/nticks)]
     xtick_lbls = range(L)
     xtick_locs = range(L)
     plt.xticks(xtick_locs,xtick_lbls)
@@ -219,13 +219,14 @@ def plot_e_inf(dt_list, e_inf_list, fig, line_num=0):
     ax.loglog(dt_list, e_inf_list,'sk',markersize=5, label='data')
 
     # label
-    ax.set_xlabel(r'mesh size ($\Delta t = h$)', fontsize=12)
-    ax.set_ylabel(r'$e_{\infty,\Delta t, h}$', fontsize=12)
+    ax.set_xlabel(r'$\Delta t$', fontsize=12)
+    ax.set_ylabel(r'$e_{\infty,\Delta t}$', fontsize=12)
     ax.legend(loc='lower right', fontsize=12)
 
+    line_num_to_type = {0:'asym',1:'symm'}
     # write fit parameters
-    ax.text(0+0.05, 1-(n+1)*0.2, 
-            '      slope: {:.3f} \nintercept: {:.3f} \n$\chi^2 = {:s}$'.format(
+    ax.text(0+0.05, 1-(line_num+1)*0.2, 
+            line_num_to_type[line_num]+':  slope: {:.3f} \nintercept: {:.3f} \n$\chi^2 = {:s}$'.format(
 		   m, b, as_sci(chi2, 3)),
 	    transform=ax.transAxes, fontsize=10)
 
@@ -233,10 +234,10 @@ def plot_e_inf(dt_list, e_inf_list, fig, line_num=0):
     ax.grid('on')
     return m, b, chi2
 
-    
 
 def convergence():
     IC = [('c2_f0-1', 1.0)]
+    dt_list = [0.1/2**k for k in range(4)]
     output_dir  = 'exact_for_trotter'
     fig = plt.figure(1, figsize=(6.5, 9))
     fig2 = plt.figure(2, figsize=(3.5,3.5))
@@ -249,6 +250,7 @@ def convergence():
 
             M = int(((T - t0)/dt))
             ts = np.arange(t0, T, dt)
+
             init_state = ss.make_state(L, IC)
             nexp = measure(M, L, init_state, dt, T=T, mode=mode)
 
@@ -266,25 +268,13 @@ def convergence():
     #plt.show()
     fio.multipage('../exact_for_trotter/plots/conv_sample.pdf')
 
-
-if __name__ == '__main__':
-
-    # simulation parameters
-    L = 18
-    t0 = 0
-    T = 2
+def basic_example(L, t0, T, dt, IC, mode):
     t_span = [t0,T] 
-    dt = 0.01
     M = int(((T - t0)/dt))
-    IC = 'c2_f0-1'
-
-    mode = 'sym'
-    #mode = 'asym'
 
     # run and measure
     init_state = ss.make_state(L, IC)
     nexp = measure(M, L, init_state, dt, T=T, mode=mode)
-
     #plot result
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -292,5 +282,18 @@ if __name__ == '__main__':
     title = r'$\langle n_j \rangle$, $\Delta t = {:f}$'.format(dt)
     grid = plot_grid(nexp, ts, ax, title, nticks=3)
     plt.colorbar(grid, label= r'$\langle n_j \rangle$')
+
     plt.show()
-    #fio.multipage(trotter_example.pdf')
+   # save plot (comment out the show() to use)
+    #fio.multipage('trotter_example.pdf')
+
+
+if __name__ == '__main__':
+    mode = 'sym'
+    #mode = 'asym'
+    L = 12
+    t0 = 0
+    T = 2
+    dt = 0.01
+    IC = 'c2_f0-1'
+    basic_example(L, t0, T, dt, IC, mode)
