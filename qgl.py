@@ -11,7 +11,6 @@ import scipy.sparse as sps
 import scipy.io as sio
 import scipy.linalg as sla
 import scipy.sparse.linalg as spsla
-import simulation.states as ss
 from qgl_util import *
 import measures as qms
 
@@ -172,7 +171,7 @@ class Simulation():
         self.nmin = round(t_span[0]/self.dt)
         self.nmax = round(t_span[1]/self.dt)
 
-        self.IC_vec = np.array([ss.make_state(self.L, IC)]).T
+        self.IC_vec = make_state(self.L, IC)
         IC_name = '-'.join(['{}{:0.3f}'.format(name, val) \
                 for (name, val) in IC])
         self.sim_name = 'L{}_dt{}_t_span{}-{}_IC{}'.format ( \

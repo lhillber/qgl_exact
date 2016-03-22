@@ -16,15 +16,14 @@ from mpi4py import MPI
 
 post_processing = False
 
-th_list = np.linspace(0.0, pi/4, 25)
 
-L_list      = [10, 11, 12, 13]
+L_list      = [10]
 dt_list     = [0.1/2**k for k in [0,1,2,3,4]]
-tasks       = ['t', 'EC', 'n', 'nn', 'MI']
 t_span_list = [(0, 2)]
-#IC_list     = [[('c3E0_1, cos(th)), ('c2t0_1', sin(th))] for th in th_list]
-IC_list = [[('c2_f0-1', 1.0)]]
+IC_list = [[('c2d3', 1.0)]]
 output_dir  = 'exact_for_trotter'
+
+tasks       = ['t', 'EC', 'n', 'nn', 'MI']
 
 
 # Simulations to Run

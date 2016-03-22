@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from math import sqrt
+from cmath import sqrt, exp, pi
 import numpy as np
 import scipy.sparse as sps
 from functools import reduce
@@ -25,6 +25,22 @@ OPS = ({
         permutations(['nbar','nbar','n','n'],4)]))
 })
 
+# ops for trotter.py
+ops = {
+        'H' : 1.0 / sqrt(2.0) * \
+              np.array( [[1.0,  1.0 ],[1.0,  -1.0]], dtype=complex),
+
+        'I' : np.array( [[1.0,  0.0 ],[0.0,   1.0]], dtype=complex ),
+        'X' : np.array( [[0.0,  1.0 ],[1.0,   0.0]], dtype=complex ),
+        'Y' : np.array( [[0.0, -1.0j],[1.0j,  0.0]], dtype=complex ),
+        'Z' : np.array( [[1.0,  0.0 ],[0.0 , -1.0]], dtype=complex ),
+
+        'S' : np.array( [[1.0,  0.0 ],[0.0 , 1.0j]], dtype=complex ),
+        'T' : np.array( [[1.0,  0.0 ],[0.0 , exp(1.0j*pi/4.0)]], dtype=complex ),
+
+        '0' : np.array( [[1.0,   0.0],[0.0,   0.0]], dtype=complex ),
+        '1' : np.array( [[0.0,   0.0],[0.0,   1.0]], dtype=complex ),
+      }
 
 
 # Matrix functions

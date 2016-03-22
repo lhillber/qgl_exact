@@ -73,28 +73,29 @@ class Measurements():
     
     # reduced density matrix (rdm) of sites in klist
     # ex) [1,2] for klist would give rho1_2
-    def rdm(self, state, klist):
-        L = int(log(len(state), 2))
-        n = len(klist)
-        rest = np.setdiff1d(np.arange(L), klist)
-        ordering = []
-        ordering = klist+list(rest)
-        block = state.reshape(([2]*L))
-        block = block.transpose(ordering)
-        block = block.reshape(2**n,2**(L-n))
-        RDM = np.zeros((2**n,2**n), dtype=complex)
-        
+
+    def rdm(self, state, js, ds=None):
+        js = np.array(js)
+        if ds is None:
+            L = int( log(len(state), 2) )
+            ds = [2]*L
+        else:
+            L = len(ds)
+
+        rest = np.setdiff1d(np.arange(L), js)
+        ordering = np.concatenate((js, rest))
+        dL = np.prod(ds)
+        djs = np.prod(np.array(ds).take(js))
+        drest = np.prod(np.array(ds).take(rest))
+
+        block = state.reshape(ds).transpose(ordering).reshape(djs, drest)
+
+        RDM = np.zeros((djs, djs), dtype=complex)
         tot = complex(0,0)
-        for i in range(2**n-1):
-            Rii = sum(np.multiply(block[i,:], np.conj(block[i,:])))
-            tot = tot+Rii
-            RDM[i][i] = Rii
-            for j in range(i,2**n):
-                if i != j:
-                    Rij = np.inner(block[i,:], np.conj(block[j,:]))
-                    RDM[i][j] = Rij
-                    RDM[j][i] = Rij
-        RDM[2**n-1,2**n-1] = complex(1,0)-tot
+        for i in range(djs):
+            for j in range(djs):
+                Rij = np.inner(block[i,:], np.conj(block[j,:]))
+                RDM[i, j] = Rij
         return RDM
 
 

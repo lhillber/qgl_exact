@@ -1,15 +1,12 @@
 #!/usr/bin/python3
-
+from math import log
 from os import makedirs, environ
 from os.path import isfile
 import numpy as np
 import scipy.linalg as sla
 from itertools import permutations
-import matrix as mx
-import states as ss
-import fio as fio
 import measures as qms
-
+import qgl_util as util
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -24,8 +21,55 @@ font = {'size':12, 'weight' : 'normal'}
 mpl.rcParams['mathtext.fontset'] = 'stix'
 mpl.rcParams['font.family'] = 'STIXGeneral'
 mpl.rc('font',**font)
-ops = ss.ops
+ops = util.ops
 
+# apply k-qubit op to a list of k sites (js) of state-vector state. ds
+# is a list of local dimensions for each site of state, assumed to be a lattice
+# of qubits if not provided.
+# -------------------------------------------------------------------------------
+def op_on_state(meso_op, js, state, ds = None):
+    if ds is None:
+        L = int( log(len(state), 2) )
+        ds = [2]*L
+    else:
+        L = len(ds)
+
+    dn = np.prod(np.array(ds).take(js))
+    dL = np.prod(ds)
+    rest = np.setdiff1d(np.arange(L), js)
+    ordering = list(rest) + list(js)
+
+    new_state = state.reshape(ds).transpose(ordering)\
+            .reshape(dL/dn, dn).dot(meso_op).reshape(ds)\
+            .transpose(np.argsort(ordering)).reshape(dL)
+    return new_state
+
+
+# compute reduced density matrix of sites in list js for state vector state
+# ds is a list of local dimensions for state (assumes all qubits i.e. dim=2)
+def rdms(state, js, ds=None):
+    js = np.array(js)
+    if ds is None:
+        L = int( log(len(state), 2) )
+        ds = [2]*L
+    else:
+        L = len(ds)
+
+    rest = np.setdiff1d(np.arange(L), js)
+    ordering = np.concatenate((js, rest))
+    dL = np.prod(ds)
+    djs = np.prod(np.array(ds).take(js))
+    drest = np.prod(np.array(ds).take(rest))
+
+    block = state.reshape(ds).transpose(ordering).reshape(djs, drest)
+
+    RDM = np.zeros((djs, djs), dtype=complex)
+    tot = complex(0,0)
+    for i in range(djs):
+        for j in range(djs):
+            Rij = np.inner(block[i,:], np.conj(block[j,:]))
+            RDM[i, j] = Rij
+    return RDM
 
 # totalistic selector for N live sites
 # ------------------------------------
@@ -36,14 +80,14 @@ def script_N(N, D=4, V='X'):
     for tup in perm:
         matlist = [tup[0], tup[1], V, tup[2], tup[3]]
         matlist = [ops[key] for key in matlist]
-        script_N += mx.listkron(matlist)
+        script_N += util.matkron(matlist)
     return script_N
 
 # kronecker together a list of op strings and sum a list of these
 # op-string-lists
 # ---------------------------------------------------------------
 def op_from_list(op_list_list):
-    return sum(mx.listkron([ops[key] for key in op_list]) 
+    return sum(util.matkron([ops[key] for key in op_list]) 
                for op_list in op_list_list)
 
 # create Hamiltonians for the bulk and the boundaries
@@ -110,7 +154,7 @@ def get_U_js_pair(U_dict, j, L, dt):
 def trotter_layer(n, dt, L, state, U_dict):
     for j in range(n, L, 5):
         U, js = get_U_js_pair(U_dict, j, L, dt)
-        state = mx.op_on_state(U, js, state)
+        state = op_on_state(U, js, state)
     return state
 
 def trotter_sym(M, dt, state, U_dict):
@@ -150,11 +194,11 @@ def measure(M, L, init_state, dt, T=1, mode='sym'):
     for t, state in enumerate(
             trotter_evolve(init_state, dt, T=T, mode=mode)):
         for j in range(L):
-            rtj = mx.rdms(state, [j])
-            nexp[t,j] = np.trace(rtj.dot(ss.ops['1'])).real
+            rtj = rdms(state, [j])
+            nexp[t,j] = np.trace(rtj.dot(util.ops['1'])).real
     return nexp
 
-# helper function for latexed sscientific notation in matplotlib
+# helper function for latexed scientific notation in matplotlib
 # --------------------------------------------------------------
 def as_sci(x, ndp):
     s = '{x:0.{ndp:d}e}'.format(x=x, ndp=ndp)
@@ -235,10 +279,11 @@ def plot_e_inf(dt_list, e_inf_list, fig, line_num=0):
     return m, b, chi2
 
 
-def convergence():
-    IC = [('c2_f0-1', 1.0)]
-    dt_list = [0.1/2**k for k in range(4)]
-    output_dir  = 'exact_for_trotter'
+def convergence(L, t0, T, IC = [('c2d3', 1.0)],
+    dt_list = [0.1/2**k for k in range(4)],
+    output_dir  = 'exact_for_trotter' ):
+
+    t_span = [t0,T] 
     fig = plt.figure(1, figsize=(6.5, 9))
     fig2 = plt.figure(2, figsize=(3.5,3.5))
     for n, mode in enumerate(['asym','sym']):
@@ -251,7 +296,7 @@ def convergence():
             M = int(((T - t0)/dt))
             ts = np.arange(t0, T, dt)
 
-            init_state = ss.make_state(L, IC)
+            init_state = util.make_state(L, IC)
             nexp = measure(M, L, init_state, dt, T=T, mode=mode)
 
             error = nexp - nexp_exact
@@ -265,15 +310,16 @@ def convergence():
         fig.subplots_adjust(hspace=0.3, wspace=0.15)
         plot_e_inf(dt_list, e_inf_list, fig2, line_num=n)
 
-    #plt.show()
-    fio.multipage('../exact_for_trotter/plots/conv_sample.pdf')
+    plt.show()
+    #save plots (comment out the show() to use)
+    #pt.multipage('../exact_for_trotter/plots/conv_sample.pdf')
 
 def basic_example(L, t0, T, dt, IC, mode):
     t_span = [t0,T] 
     M = int(((T - t0)/dt))
 
     # run and measure
-    init_state = ss.make_state(L, IC)
+    init_state = (util.make_state(L, IC).T)[0]
     nexp = measure(M, L, init_state, dt, T=T, mode=mode)
     #plot result
     fig = plt.figure()
@@ -285,15 +331,18 @@ def basic_example(L, t0, T, dt, IC, mode):
 
     plt.show()
    # save plot (comment out the show() to use)
-    #fio.multipage('trotter_example.pdf')
+    #pt.multipage('trotter_example.pdf')
 
 
 if __name__ == '__main__':
     mode = 'sym'
     #mode = 'asym'
-    L = 12
+    L = 10
     t0 = 0
     T = 2
     dt = 0.01
-    IC = 'c2_f0-1'
+    IC = [('c2d3',1.0)]
     basic_example(L, t0, T, dt, IC, mode)
+
+    #convergence(L, t0, T)
+
